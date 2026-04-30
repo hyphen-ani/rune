@@ -1,0 +1,5 @@
+bin/rune
+bin/rune-server
+
+rune.db
+.env

@@ -1,9 +1,7 @@
 package main
 
-import (
-	"fmt"
-)
+import "rune/internal/cli"
 
 func main() {
-	fmt.Println("Rune CLI Coming Soon")
+	cli.Execute()
 }

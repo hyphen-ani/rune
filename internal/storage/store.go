@@ -7,6 +7,8 @@ type Store interface {
 	SaveSalt(salt []byte) error
 }
 
+const VerifyKey = "__rune_verify"
+
 type SecretRecord struct {
 	Ciphertext []byte
 	Nonce      []byte

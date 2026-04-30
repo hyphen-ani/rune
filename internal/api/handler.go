@@ -32,7 +32,11 @@ func (h *Handler) PutSecret(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid Request", http.StatusBadRequest)
 	}
 
-	h.secretService.Put(req.Key, req.Value)
+	err := h.secretService.Put(req.Key, req.Value)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
 	w.WriteHeader(http.StatusCreated)
 }
 
@@ -58,19 +62,31 @@ func (h *Handler) Unseal(w http.ResponseWriter, r *http.Request) {
 	salt, _ := h.store.GetSalt()
 	key := crypto.DeriveKey(req.Passphrase, salt)
 
+	record, err := h.store.Get(storage.VerifyKey)
+	if err != nil {
+		http.Error(w, "vault not initialized", http.StatusInternalServerError)
+		return
+	}
+
+	plaintext, err := crypto.Decrypt(key, record.Ciphertext, record.Nonce)
+	if err != nil || string(plaintext) != "rune-check" {
+		http.Error(w, "invalid passphrase", http.StatusUnauthorized)
+		return
+	}
+
 	h.sealer.Unseal(key)
-	w.Write([]byte("vault unsealed"))
+	w.Write([]byte("unsealed"))
 
 }
 
 func (h *Handler) Seal(w http.ResponseWriter, r *http.Request) {
 	h.sealer.Seal()
-	w.Write([]byte("vault sealed"))
+	w.Write([]byte("sealed"))
 }
 
 func (h *Handler) Status(w http.ResponseWriter, r *http.Request) {
 	if h.sealer.IsSealed() {
-		w.Write([]byte("vault sealed"))
+		w.Write([]byte("sealed"))
 	} else {
 		w.Write([]byte("unsealed"))
 	}

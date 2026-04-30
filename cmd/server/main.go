@@ -1,11 +1,13 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	_ "log"
 	"net/http"
 	_ "net/http"
 	"rune/internal/api"
+	"rune/internal/crypto"
 	"rune/internal/seal"
 	"rune/internal/service"
 	"rune/internal/storage"
@@ -19,17 +21,25 @@ func main() {
 		log.Fatal(err)
 	}
 
-	//salt, err := store.GetSalt()
-	//if err != nil {
-	//	salt, _ = crypto.GenerateSalt()
-	//	store.SaveSalt(salt)
-	//}
-	//
-	//var passphrase string
-	//fmt.Print("Enter Passphrase: ")
-	//fmt.Scanln(&passphrase)
+	salt, err := store.GetSalt()
+	if err != nil {
+		salt, _ = crypto.GenerateSalt()
+		store.SaveSalt(salt)
 
-	//key := crypto.DeriveKey(passphrase, salt)
+		var passphrase string
+		fmt.Print("Enter Passphrase: ")
+		fmt.Scanln(&passphrase)
+
+		key := crypto.DeriveKey(passphrase, salt)
+
+		ciphertext, nonce, _ := crypto.Encrypt(key, []byte("rune-check"))
+
+		store.Put(storage.VerifyKey, storage.SecretRecord{
+			Ciphertext: ciphertext,
+			Nonce:      nonce,
+		})
+
+	}
 
 	sealer := seal.NewManger()
 	secretService := service.NewSecretService(store, sealer)

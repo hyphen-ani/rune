@@ -76,10 +76,11 @@ func (b *BoltStore) GetSalt() ([]byte, error) {
 
 		bucket := tx.Bucket([]byte(bucketName))
 		data := bucket.Get([]byte("__rune_salt"))
-		if data != nil {
+		if data == nil {
 			return errors.New("salt was not found")
 		}
-		salt = data
+		salt = make([]byte, len(data))
+		copy(salt, data)
 		return nil
 	})
 
