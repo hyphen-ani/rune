@@ -22,7 +22,7 @@ func NewSecretService(store storage.Store, sealer *seal.Manager) *SecretService 
 func (s *SecretService) Put(key, value string) error {
 
 	if s.sealer.IsSealed() {
-		return errors.New("vault is sealed")
+		return errors.New("[OPERATION DENIED]: Vault is Sealed")
 	}
 
 	k := s.sealer.GetKey()
@@ -43,7 +43,7 @@ func (s *SecretService) Put(key, value string) error {
 func (s *SecretService) Get(key string) (string, error) {
 
 	if s.sealer.IsSealed() {
-		return "", errors.New("vault is sealed")
+		return "", errors.New("[OPERATION DENIED]: Vault is Sealed")
 	}
 
 	k := s.sealer.GetKey()
