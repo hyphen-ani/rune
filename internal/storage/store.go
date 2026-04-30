@@ -3,6 +3,8 @@ package storage
 type Store interface {
 	Put(key string, record SecretRecord) error
 	Get(key string) (SecretRecord, error)
+	GetSalt() ([]byte, error)
+	SaveSalt(salt []byte) error
 }
 
 type SecretRecord struct {

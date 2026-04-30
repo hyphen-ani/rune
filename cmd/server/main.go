@@ -1,13 +1,12 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	_ "log"
 	"net/http"
 	_ "net/http"
 	"rune/internal/api"
-	"rune/internal/crypto"
+	"rune/internal/seal"
 	"rune/internal/service"
 	"rune/internal/storage"
 )
@@ -20,20 +19,21 @@ func main() {
 		log.Fatal(err)
 	}
 
-	salt, err := store.GetSalt()
-	if err != nil {
-		salt, _ = crypto.GenerateSalt()
-		store.SaveSalt(salt)
-	}
+	//salt, err := store.GetSalt()
+	//if err != nil {
+	//	salt, _ = crypto.GenerateSalt()
+	//	store.SaveSalt(salt)
+	//}
+	//
+	//var passphrase string
+	//fmt.Print("Enter Passphrase: ")
+	//fmt.Scanln(&passphrase)
 
-	var passphrase string
-	fmt.Print("Enter Passphrase: ")
-	fmt.Scanln(&passphrase)
+	//key := crypto.DeriveKey(passphrase, salt)
 
-	key := crypto.DeriveKey(passphrase, salt)
-
-	secretService := service.NewSecretService(store, key)
-	handler := api.NewHandler(secretService)
+	sealer := seal.NewManger()
+	secretService := service.NewSecretService(store, sealer)
+	handler := api.NewHandler(secretService, store, sealer)
 
 	//Routes For Rune
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -42,6 +42,9 @@ func main() {
 
 	http.HandleFunc("/secret/put", handler.PutSecret)
 	http.HandleFunc("/secret/get", handler.GetSecret)
+	http.HandleFunc("/seal", handler.Seal)
+	http.HandleFunc("/unseal", handler.Unseal)
+	http.HandleFunc("/status", handler.Status)
 
 	log.Fatal(http.ListenAndServe(":8080", nil))
 
