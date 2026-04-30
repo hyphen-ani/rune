@@ -1,25 +1,48 @@
 package service
 
-import "errors"
+import (
+	"rune/internal/crypto"
+	"rune/internal/storage"
+)
 
 type SecretService struct {
-	store map[string]string
+	store storage.Store
+	key   []byte
 }
 
-func NewSecretService() *SecretService {
+func NewSecretService(store storage.Store, key []byte) *SecretService {
 	return &SecretService{
-		store: make(map[string]string),
+		store: store,
+		key:   key,
 	}
 }
 
-func (s *SecretService) Put(key, value string) {
-	s.store[key] = value
+func (s *SecretService) Put(key, value string) error {
+
+	ciphertext, nonce, err := crypto.Encrypt(s.key, []byte(value))
+	if err != nil {
+		return err
+	}
+
+	record := storage.SecretRecord{
+		Ciphertext: ciphertext,
+		Nonce:      nonce,
+	}
+
+	return s.store.Put(key, record)
 }
 
 func (s *SecretService) Get(key string) (string, error) {
-	val, ok := s.store[key]
-	if !ok {
-		return "", errors.New("secret not found")
+
+	record, err := s.store.Get(key)
+	if err != nil {
+		return "", err
 	}
-	return val, nil
+
+	plaintext, err := crypto.Decrypt(s.key, record.Ciphertext, record.Nonce)
+	if err != nil {
+		return "", err
+	}
+
+	return string(plaintext), nil
 }

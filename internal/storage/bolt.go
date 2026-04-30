@@ -33,11 +33,11 @@ func NewBoltStore(path string) (*BoltStore, error) {
 	}, nil
 }
 
-func (b *BoltStore) Put(key string, value string) error {
+func (b *BoltStore) Put(key string, record SecretRecord) error {
 	return b.db.Update(func(tx *bolt.Tx) error {
 
 		bucket := tx.Bucket([]byte(bucketName))
-		data, err := json.Marshal(value)
+		data, err := json.Marshal(record)
 		if err != nil {
 			return err
 		}
@@ -46,8 +46,8 @@ func (b *BoltStore) Put(key string, value string) error {
 	})
 }
 
-func (b *BoltStore) Get(key string) (string, error) {
-	var value string
+func (b *BoltStore) Get(key string) (SecretRecord, error) {
+	var record SecretRecord
 
 	err := b.db.View(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte(bucketName))
@@ -57,8 +57,8 @@ func (b *BoltStore) Get(key string) (string, error) {
 			return errors.New("not found")
 		}
 
-		return json.Unmarshal(data, &value)
+		return json.Unmarshal(data, &record)
 	})
 
-	return value, err
+	return record, err
 }
