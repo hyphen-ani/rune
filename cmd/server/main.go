@@ -1,11 +1,13 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	_ "log"
 	"net/http"
 	_ "net/http"
 	"rune/internal/api"
+	"rune/internal/crypto"
 	"rune/internal/service"
 	"rune/internal/storage"
 )
@@ -13,12 +15,22 @@ import (
 func main() {
 	log.Println("Starting Rune Server on: 8080")
 
-	key := []byte("example key 1234example key 1234")
-
 	store, err := storage.NewBoltStore("rune.db")
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	salt, err := store.GetSalt()
+	if err != nil {
+		salt, _ = crypto.GenerateSalt()
+		store.SaveSalt(salt)
+	}
+
+	var passphrase string
+	fmt.Print("Enter Passphrase: ")
+	fmt.Scanln(&passphrase)
+
+	key := crypto.DeriveKey(passphrase, salt)
 
 	secretService := service.NewSecretService(store, key)
 	handler := api.NewHandler(secretService)

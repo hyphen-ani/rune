@@ -62,3 +62,26 @@ func (b *BoltStore) Get(key string) (SecretRecord, error) {
 
 	return record, err
 }
+
+func (b *BoltStore) SaveSalt(salt []byte) error {
+	return b.db.Update(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte(bucketName))
+		return bucket.Put([]byte("__rune_salt"), salt)
+	})
+}
+
+func (b *BoltStore) GetSalt() ([]byte, error) {
+	var salt []byte
+	err := b.db.View(func(tx *bolt.Tx) error {
+
+		bucket := tx.Bucket([]byte(bucketName))
+		data := bucket.Get([]byte("__rune_salt"))
+		if data != nil {
+			return errors.New("salt was not found")
+		}
+		salt = data
+		return nil
+	})
+
+	return salt, err
+}
