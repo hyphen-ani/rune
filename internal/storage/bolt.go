@@ -54,7 +54,7 @@ func (b *BoltStore) Get(key string) (SecretRecord, error) {
 
 		data := bucket.Get([]byte(key))
 		if data == nil {
-			return errors.New("not found")
+			return errors.New("[NOT FOUND] Secret not Found")
 		}
 
 		return json.Unmarshal(data, &record)

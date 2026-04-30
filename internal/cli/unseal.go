@@ -9,7 +9,7 @@ import (
 
 var unsealCmd = &cobra.Command{
 	Use:   "unseal",
-	Short: "Unseals the vault",
+	Short: "Unseal the vault using a passphrase to restore access to encrypted secrets",
 	Run: func(cmd *cobra.Command, args []string) {
 		var passphrase string
 		fmt.Print("Enter passphrase: ")
@@ -19,10 +19,10 @@ var unsealCmd = &cobra.Command{
 		err := c.Unseal(passphrase)
 
 		if err != nil {
-			fmt.Println("Failed:", err)
+			Error(err.Error())
 			return
 		}
-		fmt.Println("Vault Unsealed")
+		Success("Vault Unsealed Successfully")
 	},
 }
 

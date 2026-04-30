@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"rune/pkg/client"
 
 	"github.com/spf13/cobra"
@@ -10,16 +9,16 @@ import (
 var putCmd = &cobra.Command{
 
 	Use:   "put [key] [value]",
-	Short: "Store a secret",
+	Short: "Store and encrypt a secret value under a specified key in the vault",
 	Args:  cobra.ExactArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
 		c := client.New("http://localhost:8080")
 		err := c.Put(args[0], args[1])
 		if err != nil {
-			fmt.Println("Error:", err)
+			Error(err.Error())
 			return
 		}
-		fmt.Println("Stored successfully")
+		Success("Secret Stored Successfully")
 	},
 }
 
