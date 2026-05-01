@@ -8,9 +8,35 @@ import (
 )
 
 const bucketName = "secrets"
+const tokenBucket = "__rune_tokens"
 
 type BoltStore struct {
 	db *bolt.DB
+}
+
+func (b *BoltStore) IsValidToken(hash string) bool {
+	//TODO implement me
+	var exists bool
+
+	err := b.db.View(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte(tokenBucket))
+		val := bucket.Get([]byte(hash))
+		exists = val != nil
+		return nil
+	})
+	if err != nil {
+		return false
+	}
+
+	return exists
+}
+
+func (b *BoltStore) SaveToken(hash string) error {
+	//TODO implement me
+	return b.db.Update(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte(tokenBucket))
+		return bucket.Put([]byte(hash), []byte(hash))
+	})
 }
 
 func NewBoltStore(path string) (*BoltStore, error) {
@@ -21,6 +47,7 @@ func NewBoltStore(path string) (*BoltStore, error) {
 
 	err = db.Update(func(tx *bolt.Tx) error {
 		_, err := tx.CreateBucketIfNotExists([]byte(bucketName))
+		_, err = tx.CreateBucketIfNotExists([]byte(tokenBucket))
 		return err
 	})
 

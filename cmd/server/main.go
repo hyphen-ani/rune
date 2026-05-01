@@ -7,7 +7,9 @@ import (
 	"net/http"
 	_ "net/http"
 	"rune/internal/api"
+	"rune/internal/auth"
 	"rune/internal/crypto"
+	"rune/internal/middleware"
 	"rune/internal/seal"
 	"rune/internal/service"
 	"rune/internal/storage"
@@ -23,6 +25,7 @@ func main() {
 
 	salt, err := store.GetSalt()
 	if err != nil {
+		// Initialization
 		salt, _ = crypto.GenerateSalt()
 		store.SaveSalt(salt)
 
@@ -39,23 +42,46 @@ func main() {
 			Nonce:      nonce,
 		})
 
+		token, hash := auth.GenerateToken()
+		err = store.SaveToken(hash)
+		if err != nil {
+			return
+		}
+
+		fmt.Println("====================================")
+		fmt.Println("Root Token (SAVE THIS):", token)
+		fmt.Println("====================================")
+
 	}
 
 	sealer := seal.NewManger()
 	secretService := service.NewSecretService(store, sealer)
 	handler := api.NewHandler(secretService, store, sealer)
 
-	//Routes For Rune
-	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+	// PUBLIC
+	public := http.NewServeMux()
+	public.HandleFunc("/unseal", handler.Unseal)
+	public.HandleFunc("/status", handler.Status)
+
+	// PROTECTED
+	protected := http.NewServeMux()
+	protected.HandleFunc("/secret/put", handler.PutSecret)
+	protected.HandleFunc("/secret/get", handler.GetSecret)
+	protected.HandleFunc("/seal", handler.Seal)
+
+	// APPLY MIDDLEWARE
+	secured := middleware.AuthMiddleware(store)(protected)
+
+	finalMux := http.NewServeMux()
+	finalMux.Handle("/unseal", public)
+	finalMux.Handle("/status", public)
+	finalMux.Handle("/health", public)
+	finalMux.Handle("/", secured)
+
+	// HEALTH ROUTE
+	public.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("ok"))
 	})
 
-	http.HandleFunc("/secret/put", handler.PutSecret)
-	http.HandleFunc("/secret/get", handler.GetSecret)
-	http.HandleFunc("/seal", handler.Seal)
-	http.HandleFunc("/unseal", handler.Unseal)
-	http.HandleFunc("/status", handler.Status)
-
-	log.Fatal(http.ListenAndServe(":8080", nil))
-
+	log.Fatal(http.ListenAndServe(":8080", finalMux))
 }
