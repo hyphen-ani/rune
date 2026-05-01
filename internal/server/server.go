@@ -12,6 +12,7 @@ import (
 	"rune/internal/seal"
 	"rune/internal/service"
 	"rune/internal/storage"
+	"time"
 )
 
 func Start() {
@@ -47,7 +48,14 @@ func Start() {
 		})
 
 		token, hash := auth.GenerateToken()
-		err = store.SaveToken(hash)
+		record := auth.TokenRecord{
+			ID:        "root",
+			Hash:      hash,
+			Name:      "root",
+			CreatedAt: time.Now().Format(time.RFC3339),
+			Revoked:   false,
+		}
+		err = store.SaveToken(record)
 		if err != nil {
 			return
 		}
@@ -60,12 +68,16 @@ func Start() {
 
 	sealer := seal.NewManger()
 	secretService := service.NewSecretService(store, sealer)
-	handler := api.NewHandler(secretService, store, sealer)
+	tokenService := service.NewTokenService(store)
+	handler := api.NewHandler(secretService, tokenService, store, sealer)
 
 	// PUBLIC
 	public := http.NewServeMux()
 	public.HandleFunc("/unseal", handler.Unseal)
 	public.HandleFunc("/status", handler.Status)
+	public.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("ok"))
+	})
 
 	// PROTECTED
 	protected := http.NewServeMux()
@@ -73,6 +85,9 @@ func Start() {
 	protected.HandleFunc("/secret/get", handler.GetSecret)
 	protected.HandleFunc("/secret/list", handler.ListSecrets)
 	protected.HandleFunc("/seal", handler.Seal)
+	protected.HandleFunc("/token/create", handler.CreateToken)
+	protected.HandleFunc("/token/revoke", handler.RevokeToken)
+	protected.HandleFunc("/token/list", handler.ListTokens)
 
 	// APPLY MIDDLEWARE
 	secured := middleware.AuthMiddleware(store)(protected)
@@ -82,11 +97,6 @@ func Start() {
 	finalMux.Handle("/status", public)
 	finalMux.Handle("/health", public)
 	finalMux.Handle("/", secured)
-
-	// HEALTH ROUTE
-	public.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("ok"))
-	})
 
 	log.Fatal(http.ListenAndServe(":8080", finalMux))
 }

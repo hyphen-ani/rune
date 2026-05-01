@@ -34,7 +34,9 @@ func AuthMiddleware(store storage.Store) func(http.Handler) http.Handler {
 
 			hash := sha256.Sum256([]byte(token))
 			hashStr := hex.EncodeToString(hash[:])
-			if !store.IsValidToken(hashStr) {
+
+			_, err := store.GetTokenByHash(hashStr)
+			if err != nil {
 				http.Error(w, "invalid token", http.StatusUnauthorized)
 				return
 			}

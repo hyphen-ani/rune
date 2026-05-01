@@ -3,6 +3,7 @@ package storage
 import (
 	"encoding/json"
 	"errors"
+	"rune/internal/auth"
 
 	bolt "go.etcd.io/bbolt"
 )
@@ -106,11 +107,11 @@ func (b *BoltStore) IsValidToken(hash string) bool {
 	return exists
 }
 
-func (b *BoltStore) SaveToken(hash string) error {
-	//TODO implement me
+func (b *BoltStore) SaveToken(record auth.TokenRecord) error {
 	return b.db.Update(func(tx *bolt.Tx) error {
-		bucket := tx.Bucket([]byte(tokenBucket))
-		return bucket.Put([]byte(hash), []byte(hash))
+		bucket, _ := tx.CreateBucketIfNotExists([]byte(tokenBucket))
+		data, _ := json.Marshal(record)
+		return bucket.Put([]byte(record.ID), data)
 	})
 }
 
@@ -135,4 +136,77 @@ func (b *BoltStore) ListKeys() ([]string, error) {
 	})
 	return keys, err
 
+}
+
+func (b *BoltStore) GetTokenByHash(hash string) (*auth.TokenRecord, error) {
+
+	var found *auth.TokenRecord
+
+	b.db.View(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte(tokenBucket))
+		if bucket == nil {
+			return nil
+		}
+
+		bucket.ForEach(func(k, v []byte) error {
+			var rec auth.TokenRecord
+			json.Unmarshal(v, &rec)
+
+			if rec.Hash == hash && !rec.Revoked {
+				found = &rec
+			}
+
+			return nil
+		})
+
+		return nil
+	})
+
+	if found == nil {
+		return nil, errors.New("[INVALID] Invalid Token")
+	}
+
+	return found, nil
+
+}
+
+func (b *BoltStore) ListTokens() ([]auth.TokenRecord, error) {
+	var tokens []auth.TokenRecord
+
+	b.db.View(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte(tokenBucket))
+		if bucket == nil {
+			return nil
+		}
+
+		bucket.ForEach(func(k, v []byte) error {
+			var rec auth.TokenRecord
+			json.Unmarshal(v, &rec)
+			tokens = append(tokens, rec)
+			return nil
+		})
+
+		return nil
+	})
+
+	return tokens, nil
+}
+
+func (b *BoltStore) RevokeToken(id string) error {
+	return b.db.Update(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte(tokenBucket))
+
+		data := bucket.Get([]byte(id))
+		if data == nil {
+			return errors.New("[NOT FOUND] Token not Found")
+		}
+
+		var rec auth.TokenRecord
+		json.Unmarshal(data, &rec)
+
+		rec.Revoked = true
+
+		updated, _ := json.Marshal(rec)
+		return bucket.Put([]byte(id), updated)
+	})
 }
