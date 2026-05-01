@@ -69,7 +69,7 @@ func Start() {
 
 	sealer := seal.NewManger()
 	secretService := service.NewSecretService(store, sealer)
-	tokenService := service.NewTokenService(store)
+	tokenService := service.NewTokenService(store, sealer)
 	handler := api.NewHandler(secretService, tokenService, store, sealer)
 
 	// PUBLIC
