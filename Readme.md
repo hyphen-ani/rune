@@ -1,5 +1,7 @@
 # Rune
 
+![version](https://img.shields.io/badge/version-v0.1.0-blue)
+
 <p align="center">
   <img src="./assets/logo.png" alt="Rune Logo" width="220"/>
 </p>
