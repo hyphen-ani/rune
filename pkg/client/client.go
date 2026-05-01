@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"rune/internal/auth"
 )
 
 type Client struct {
@@ -151,5 +152,71 @@ func (c *Client) Status() (string, error) {
 	}
 	body, _ := io.ReadAll(resp.Body)
 	return string(body), nil
+
+}
+
+func (c *Client) CreateToken(name string) (string, auth.TokenRecord, error) {
+	body := map[string]string{
+		"name": name,
+	}
+	data, _ := json.Marshal(body)
+	req, _ := http.NewRequest("POST", c.BaseURL+"/token/create", bytes.NewBuffer(data))
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", auth.TokenRecord{}, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return "", auth.TokenRecord{}, fmt.Errorf(string(b))
+	}
+	var result struct {
+		Token  string           `json:"token"`
+		Record auth.TokenRecord `json:"record"`
+	}
+	json.NewDecoder(resp.Body).Decode(&result)
+	return result.Token, result.Record, nil
+}
+
+func (c *Client) ListTokens() ([]auth.TokenRecord, error) {
+
+	req, _ := http.NewRequest("GET", c.BaseURL+"/token/list", nil)
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf(string(b))
+	}
+	var tokens []auth.TokenRecord
+	json.NewDecoder(resp.Body).Decode(&tokens)
+	return tokens, nil
+
+}
+
+func (c *Client) RevokeToken(id string) error {
+
+	body := map[string]string{
+		"id": id,
+	}
+	data, _ := json.Marshal(body)
+	req, _ := http.NewRequest("POST", c.BaseURL+"/token/revoke", bytes.NewBuffer(data))
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf(string(b))
+	}
+	return nil
 
 }

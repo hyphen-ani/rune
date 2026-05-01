@@ -11,13 +11,15 @@ import (
 
 type Handler struct {
 	secretService *service.SecretService
+	tokenService  *service.TokenService
 	store         storage.Store
 	sealer        *seal.Manager
 }
 
-func NewHandler(s *service.SecretService, store storage.Store, sealer *seal.Manager) *Handler {
+func NewHandler(s *service.SecretService, t *service.TokenService, store storage.Store, sealer *seal.Manager) *Handler {
 	return &Handler{
 		secretService: s,
+		tokenService:  t,
 		store:         store,
 		sealer:        sealer,
 	}
@@ -100,4 +102,59 @@ func (h *Handler) Status(w http.ResponseWriter, r *http.Request) {
 	} else {
 		w.Write([]byte("unsealed"))
 	}
+}
+
+func (h *Handler) CreateToken(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name string `json:"name"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid Request", http.StatusBadRequest)
+		return
+	}
+
+	token, record, err := h.tokenService.Create(req.Name)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+
+	resp := map[string]interface{}{
+		"token":  token,
+		"record": record,
+	}
+
+	json.NewEncoder(w).Encode(resp)
+}
+
+func (h *Handler) ListTokens(w http.ResponseWriter, r *http.Request) {
+
+	tokens, err := h.tokenService.List()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(tokens)
+
+}
+
+func (h *Handler) RevokeToken(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ID string `json:"id"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid Request", http.StatusBadRequest)
+		return
+	}
+
+	err := h.tokenService.Revoke(req.ID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+
+	w.Write([]byte("revoked"))
 }

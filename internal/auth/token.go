@@ -7,6 +7,14 @@ import (
 	"fmt"
 )
 
+type TokenRecord struct {
+	ID        string `json:"id"`
+	Hash      string `json:"hash"`
+	Name      string `json:"name"`
+	CreatedAt string `json:"created_at"`
+	Revoked   bool   `json:"revoked"`
+}
+
 func GenerateToken() (string, string) {
 	b := make([]byte, 32)
 	_, err := rand.Read(b)
