@@ -64,13 +64,13 @@ func (h *Handler) Unseal(w http.ResponseWriter, r *http.Request) {
 
 	record, err := h.store.Get(storage.VerifyKey)
 	if err != nil {
-		http.Error(w, "vault not initialized", http.StatusInternalServerError)
+		http.Error(w, "Vault Not Initialized", http.StatusInternalServerError)
 		return
 	}
 
 	plaintext, err := crypto.Decrypt(key, record.Ciphertext, record.Nonce)
 	if err != nil || string(plaintext) != "rune-check" {
-		http.Error(w, "invalid passphrase", http.StatusUnauthorized)
+		http.Error(w, "Invalid Passphrase", http.StatusUnauthorized)
 		return
 	}
 
@@ -81,13 +81,13 @@ func (h *Handler) Unseal(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) Seal(w http.ResponseWriter, r *http.Request) {
 	h.sealer.Seal()
-	w.Write([]byte("sealed"))
+	w.Write([]byte("Sealed"))
 }
 
 func (h *Handler) Status(w http.ResponseWriter, r *http.Request) {
 	if h.sealer.IsSealed() {
-		w.Write([]byte("sealed"))
+		w.Write([]byte("Sealed"))
 	} else {
-		w.Write([]byte("unsealed"))
+		w.Write([]byte("Unsealed"))
 	}
 }
