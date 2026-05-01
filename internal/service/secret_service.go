@@ -60,3 +60,11 @@ func (s *SecretService) Get(key string) (string, error) {
 
 	return string(plaintext), nil
 }
+
+func (s *SecretService) ListKeys() ([]string, error) {
+	if s.sealer.IsSealed() {
+		return nil, errors.New("[OPERATION DENIED]: Vault is Sealed")
+	}
+
+	return s.store.ListKeys()
+}

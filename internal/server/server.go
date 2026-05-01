@@ -71,6 +71,7 @@ func Start() {
 	protected := http.NewServeMux()
 	protected.HandleFunc("/secret/put", handler.PutSecret)
 	protected.HandleFunc("/secret/get", handler.GetSecret)
+	protected.HandleFunc("/secret/list", handler.ListSecrets)
 	protected.HandleFunc("/seal", handler.Seal)
 
 	// APPLY MIDDLEWARE

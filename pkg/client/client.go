@@ -107,6 +107,37 @@ func (c *Client) Get(key string) (string, error) {
 
 }
 
+func (c *Client) List() ([]string, error) {
+	req, err := http.NewRequest("GET", c.BaseURL+"/secret/list", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf(string(bodyBytes))
+	}
+
+	var keys []string
+	err = json.NewDecoder(resp.Body).Decode(&keys)
+	if err != nil {
+		return nil, err
+	}
+
+	return keys, nil
+}
+
 func (c *Client) Status() (string, error) {
 
 	resp, err := http.Get(c.BaseURL + "/status")

@@ -53,6 +53,16 @@ func (h *Handler) GetSecret(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *Handler) ListSecrets(w http.ResponseWriter, r *http.Request) {
+	keys, err := h.secretService.ListKeys()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+
+	json.NewEncoder(w).Encode(keys)
+}
+
 func (h *Handler) Unseal(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Passphrase string `json:"passphrase"`
