@@ -4,7 +4,7 @@ import "github.com/spf13/cobra"
 
 var tokenCmd = &cobra.Command{
 	Use:   "token",
-	Short: "Manage authentication tokens",
+	Short: "Manage authentication tokens (create, list, revoke)",
 }
 
 func init() {

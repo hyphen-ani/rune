@@ -1,6 +1,12 @@
 package cli
 
-import "github.com/spf13/cobra"
+import (
+	"fmt"
+
+	"github.com/spf13/cobra"
+)
+
+var showVersion bool
 
 var rootCmd = &cobra.Command{
 
@@ -26,6 +32,18 @@ Key features:
 
 Use rune to securely manage secrets in local or self-hosted environments without heavy infrastructure.
 `,
+	Run: func(cmd *cobra.Command, args []string) {
+		if showVersion {
+			fmt.Printf("rune %s\n", Version)
+			return
+		}
+
+		cmd.Help()
+	},
+}
+
+func init() {
+	rootCmd.Flags().BoolVarP(&showVersion, "version", "v", false, "Print version")
 }
 
 func Execute() {

@@ -11,7 +11,7 @@ import (
 var tokenListCmd = &cobra.Command{
 
 	Use:   "list",
-	Short: "List all tokens",
+	Short: "List all tokens with their status (active or revoked)",
 	Run: func(cmd *cobra.Command, args []string) {
 		token, err := config.LoadToken()
 		if err != nil {
@@ -33,7 +33,7 @@ var tokenListCmd = &cobra.Command{
 			if t.Revoked {
 				status = "revoked"
 			}
-			fmt.Printf("• %s  %s  %s\n", t.ID, t.Name, status)
+			fmt.Printf("  • %-15s %-20s %s\n", t.ID, t.Name, status)
 		}
 	},
 }

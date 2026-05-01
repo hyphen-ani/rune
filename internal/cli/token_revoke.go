@@ -9,7 +9,7 @@ import (
 
 var tokenRevokeCmd = &cobra.Command{
 	Use:   "revoke [token-id]",
-	Short: "Revoke a token",
+	Short: "Revoke an existing token, immediately disabling its access",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		tokenID := args[0]

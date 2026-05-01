@@ -31,8 +31,9 @@ var listCmd = &cobra.Command{
 			return
 		}
 
+		fmt.Println("\nStored Secrets:\n")
 		for _, key := range keys {
-			fmt.Println("[SECRET]", key)
+			fmt.Printf("  [SECRET] %s\n", key)
 		}
 	},
 }

@@ -12,7 +12,7 @@ var tokenName string
 
 var tokenCreateCmd = &cobra.Command{
 	Use:   "create",
-	Short: "Create a new token",
+	Short: "Create a new access token with an optional name for identification",
 	Run: func(cmd *cobra.Command, args []string) {
 		token, err := config.LoadToken()
 		if err != nil {
@@ -25,10 +25,12 @@ var tokenCreateCmd = &cobra.Command{
 			Error(err.Error())
 			return
 		}
-		fmt.Println("✔ Token created")
-		fmt.Println("ID:", record.ID)
-		fmt.Println("Name:", record.Name)
-		fmt.Println("Token:", newToken)
+
+		fmt.Println()
+		fmt.Println("  ID:   ", record.ID)
+		fmt.Println("  Name: ", record.Name)
+		fmt.Println("  Token:", newToken)
+		fmt.Println()
 	},
 }
 

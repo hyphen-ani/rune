@@ -353,12 +353,15 @@ It is built with three principles in mind:
 **Control** — your secrets run on your infrastructure. Nothing phones home.
 **Clarity** — the security model is simple enough to be understood and audited by a single developer.
 
+
 Rune is inspired by [HashiCorp Vault](https://www.vaultproject.io/) and [AWS Secrets Manager](https://aws.amazon.com/secrets-manager/), but intentionally scoped for local and small-team use cases where those tools are too heavy.
+
 ---
 
 ## License
 
 Rune is released under the [MIT License](./LICENSE).
+
 ---
 
 <p align="center">

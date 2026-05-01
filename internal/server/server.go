@@ -63,6 +63,7 @@ func Start() {
 		fmt.Println("====================================")
 		fmt.Println("Root Token (SAVE THIS):", token)
 		fmt.Println("====================================")
+		fmt.Println("Store this token securely. It will not be shown again.")
 
 	}
 

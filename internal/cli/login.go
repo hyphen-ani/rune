@@ -9,7 +9,7 @@ import (
 var loginCmd = &cobra.Command{
 
 	Use:   "login [token]",
-	Short: "Save authentication token",
+	Short: "Authenticate with the Rune server and save your access token locally",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		token := args[0]
