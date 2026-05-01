@@ -12,7 +12,7 @@ var statusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Check whether the vault is currently sealed or unsealed",
 	Run: func(cmd *cobra.Command, args []string) {
-		c := client.New("http://localhost:8080")
+		c := client.New("http://localhost:8080", "")
 		status, err := c.Status()
 		if err != nil {
 			Error(err.Error())

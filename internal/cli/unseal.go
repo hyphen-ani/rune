@@ -15,7 +15,7 @@ var unsealCmd = &cobra.Command{
 		fmt.Print("Enter passphrase: ")
 		fmt.Scanln(&passphrase)
 
-		c := client.New("http://localhost:8080")
+		c := client.New("http://localhost:8080", "")
 		err := c.Unseal(passphrase)
 
 		if err != nil {

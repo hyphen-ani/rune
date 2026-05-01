@@ -81,13 +81,13 @@ func (h *Handler) Unseal(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) Seal(w http.ResponseWriter, r *http.Request) {
 	h.sealer.Seal()
-	w.Write([]byte("Sealed"))
+	w.Write([]byte("sealed"))
 }
 
 func (h *Handler) Status(w http.ResponseWriter, r *http.Request) {
 	if h.sealer.IsSealed() {
-		w.Write([]byte("Sealed"))
+		w.Write([]byte("sealed"))
 	} else {
-		w.Write([]byte("Unsealed"))
+		w.Write([]byte("unsealed"))
 	}
 }

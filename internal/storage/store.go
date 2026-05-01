@@ -5,6 +5,8 @@ type Store interface {
 	Get(key string) (SecretRecord, error)
 	GetSalt() ([]byte, error)
 	SaveSalt(salt []byte) error
+	SaveToken(hash string) error
+	IsValidToken(hash string) bool
 }
 
 const VerifyKey = "__rune_verify"

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"rune/internal/config"
 	"rune/pkg/client"
 
 	"github.com/spf13/cobra"
@@ -13,7 +14,12 @@ var getCmd = &cobra.Command{
 	Short: "Retrieve and decrypt a stored secret by key from the vault (requires vault to be unsealed)",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		c := client.New("http://localhost:8080")
+		token, err := config.LoadToken()
+		if err != nil {
+			Error("[AUTHENTICATION FAILED] Please login first using: rune login <token>")
+			return
+		}
+		c := client.New("http://localhost:8080", token)
 		val, err := c.Get(args[0])
 		if err != nil {
 			Error(err.Error())

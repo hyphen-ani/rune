@@ -10,11 +10,13 @@ import (
 
 type Client struct {
 	BaseURL string
+	Token   string
 }
 
-func New(baseURL string) *Client {
+func New(baseURL string, token string) *Client {
 	return &Client{
 		BaseURL: baseURL,
+		Token:   token,
 	}
 }
 
@@ -41,6 +43,7 @@ func (c *Client) Unseal(passphrase string) error {
 
 func (c *Client) Seal() error {
 	req, _ := http.NewRequest("POST", c.BaseURL+"/seal", nil)
+	req.Header.Set("Authorization", "Bearer "+c.Token)
 	_, err := http.DefaultClient.Do(req)
 	return err
 }
@@ -53,7 +56,15 @@ func (c *Client) Put(key, value string) error {
 	}
 
 	data, _ := json.Marshal(body)
-	resp, err := http.Post(c.BaseURL+"/secret/put", "application/json", bytes.NewBuffer(data))
+	req, err := http.NewRequest("POST", c.BaseURL+"/secret/put", bytes.NewBuffer(data))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -70,14 +81,21 @@ func (c *Client) Put(key, value string) error {
 
 func (c *Client) Get(key string) (string, error) {
 
-	resp, err := http.Get(c.BaseURL + "/secret/get?key=" + key)
+	req, err := http.NewRequest("GET", c.BaseURL+"/secret/get?key="+key, nil)
 	if err != nil {
 		return "", err
 	}
+
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-
 		body, _ := io.ReadAll(resp.Body)
 		return "", fmt.Errorf(string(body))
 	}
