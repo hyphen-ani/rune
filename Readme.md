@@ -13,7 +13,7 @@
   <img src="https://img.shields.io/badge/version-v0.1.0-blue" alt="version"/>
   <img src="https://img.shields.io/badge/license-MIT-green" alt="license"/>
   <img src="https://img.shields.io/badge/go-%3E%3D1.21-00ADD8?logo=go" alt="go version"/>
-  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey%20%7C%20Windows-blue" alt="platform"/>
+  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-blue" alt="platform"/>
 </p>
 
 ---
