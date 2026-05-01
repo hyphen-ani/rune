@@ -50,13 +50,13 @@ It provides AES-GCM encrypted storage, a secure seal/unseal lifecycle, and token
 
 | Feature | Description |
 |---|---|
-| 🔐 **AES-GCM Encryption** | Secrets are encrypted at rest using industry-standard authenticated encryption |
-| 🔑 **Argon2 Key Derivation** | Passphrase-based key derivation using Argon2 — resistant to brute-force attacks |
-| 🔒 **Seal / Unseal Lifecycle** | Vault starts sealed on every launch; no secrets are accessible until explicitly unsealed |
-| 🪙 **Token Authentication** | All protected endpoints require a valid token; tokens are hashed before storage |
-| 💻 **CLI Interface** | Intuitive command-line tool for all vault operations |
-| 📦 **Zero External Dependencies** | No cloud services, no agents, no sidecars — just a single binary |
-| 🗄️ **BoltDB Storage** | Embedded key-value store (the same underlying tech powering etcd) |
+| **AES-GCM Encryption** | Secrets are encrypted at rest using industry-standard authenticated encryption |
+| **Argon2 Key Derivation** | Passphrase-based key derivation using Argon2 — resistant to brute-force attacks |
+| **Seal / Unseal Lifecycle** | Vault starts sealed on every launch; no secrets are accessible until explicitly unsealed |
+| **Token Authentication** | All protected endpoints require a valid token; tokens are hashed before storage |
+| **CLI Interface** | Intuitive command-line tool for all vault operations |
+| **Zero External Dependencies** | No cloud services, no agents, no sidecars — just a single binary |
+| **BoltDB Storage** | Embedded key-value store (the same underlying tech powering etcd) |
 
 ---
 
@@ -98,7 +98,7 @@ rune --version
 rune-server --version
 ```
 
-> Binary releases for other platforms are available on the [Releases](https://github.com/your-org/rune/releases) page.
+> Binary releases for other platforms are available on the [Releases](https://github.com/hyphen-ani/rune/releases) page.
 
 ---
 
@@ -312,7 +312,7 @@ Rune's security design prioritizes simplicity and auditability over complexity.
 
 The following features are planned for future releases:
 
-- [ ] Token management (create, revoke, list tokens)
+- [X] Token management (create, revoke, list tokens)
 - [ ] Role-based access control (RBAC)
 - [ ] Namespaces for multi-tenant secret isolation
 - [ ] Audit logging with tamper-evident records
@@ -336,9 +336,8 @@ Please open an issue first for significant changes or new features so we can dis
 
 ### Reporting Issues
 
-If you discover a security vulnerability, **do not open a public issue**. Please email [security@example.com](mailto:security@example.com) instead.
-
-For bugs and feature requests, use the [GitHub issue tracker](https://github.com/your-org/rune/issues).
+If you discover a security vulnerability, **do not open a public issue**. Please email [security@runelock.io](mailto:security@runelock.io) instead.
+For bugs and feature requests, use the [GitHub issue tracker](https://github.com/hyphen-ani/rune/issues).
 
 ---
 
@@ -351,19 +350,15 @@ Rune exists because most secrets managers either require cloud infrastructure, h
 It is built with three principles in mind:
 
 **Minimalism** — every feature must justify its existence. Complexity is a liability.
-
 **Control** — your secrets run on your infrastructure. Nothing phones home.
-
 **Clarity** — the security model is simple enough to be understood and audited by a single developer.
 
 Rune is inspired by [HashiCorp Vault](https://www.vaultproject.io/) and [AWS Secrets Manager](https://aws.amazon.com/secrets-manager/), but intentionally scoped for local and small-team use cases where those tools are too heavy.
-
 ---
 
 ## License
 
 Rune is released under the [MIT License](./LICENSE).
-
 ---
 
 <p align="center">
