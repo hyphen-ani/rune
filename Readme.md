@@ -314,7 +314,7 @@ The following features are planned for future releases:
 
 - [X] Token management (create, revoke, list tokens)
 - [ ] Role-based access control (RBAC)
-- [ ] Namespaces for multi-tenant secret isolation
+- [X] Namespaces for multi-tenant secret isolation
 - [ ] Audit logging with tamper-evident records
 - [ ] UI dashboard (Electron)
 - [ ] TLS support for remote deployments
