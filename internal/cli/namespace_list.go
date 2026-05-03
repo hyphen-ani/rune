@@ -35,7 +35,7 @@ var namespaceListCmd = &cobra.Command{
 
 		fmt.Println("\nNamespaces:\n")
 		for _, namespace := range namespaces {
-			fmt.Println("[NAMESPACES] %s\n", namespace)
+			fmt.Printf("[NAMESPACES] %s\n", namespace)
 		}
 
 		fmt.Println()
