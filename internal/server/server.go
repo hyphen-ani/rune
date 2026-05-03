@@ -36,7 +36,7 @@ func Start() {
 		store.SaveSalt(salt)
 
 		var passphrase string
-		fmt.Print("Enter Passphrase: ")
+		fmt.Print("Set A Passphrase (Required For Sealing and Unsealing): ")
 		fmt.Scanln(&passphrase)
 
 		key := crypto.DeriveKey(passphrase, salt)
