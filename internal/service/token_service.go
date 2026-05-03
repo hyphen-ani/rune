@@ -46,6 +46,9 @@ func (s *TokenService) Revoke(id string) error {
 	if s.sealer.IsSealed() {
 		return errors.New("[OPERATION DENIED]: Vault is Sealed")
 	}
+	if id == "root" {
+		return errors.New("[OPERATION DENIED]: Cannot revoke root token")
+	}
 	return s.store.RevokeToken(id)
 }
 
