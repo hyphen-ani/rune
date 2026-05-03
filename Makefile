@@ -1,6 +1,6 @@
-build:
+cli-build:
 	go build -o rune ./cmd/cli
-install: build
+cli-install: cli-build
 	sudo mv rune /usr/local/bin/rune
 
 server-build:

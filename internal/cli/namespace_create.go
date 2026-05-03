@@ -9,7 +9,7 @@ import (
 
 var namespaceCreateCmd = &cobra.Command{
 	Use:   "create [name]",
-	Short: "Create a namespace",
+	Short: "Creates a new namespace for isolating secrets.",
 	Args:  cobra.ExactArgs(1),
 
 	Run: func(cmd *cobra.Command, args []string) {

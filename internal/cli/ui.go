@@ -6,7 +6,7 @@ import (
 
 var (
 	success = color.New(color.FgGreen).SprintFunc()
-	errc    = color.New(color.FgRed).SprintFunc()
+	error   = color.New(color.FgRed).SprintFunc()
 	info    = color.New(color.FgCyan).SprintFunc()
 )
 
@@ -15,7 +15,7 @@ func Success(msg string) {
 }
 
 func Error(msg string) {
-	println(errc("✖ " + msg))
+	println(error("✖ " + msg))
 }
 
 func Info(msg string) {

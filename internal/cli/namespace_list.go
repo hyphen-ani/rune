@@ -10,7 +10,7 @@ import (
 
 var namespaceListCmd = &cobra.Command{
 	Use:   "list",
-	Short: "List all namespaces",
+	Short: "Displays all namespaces currently defined in the vault.",
 
 	Run: func(cmd *cobra.Command, args []string) {
 
