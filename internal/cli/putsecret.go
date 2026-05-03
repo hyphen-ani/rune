@@ -19,7 +19,8 @@ var putCmd = &cobra.Command{
 			return
 		}
 		c := client.New("http://localhost:8080", token)
-		err = c.Put(args[0], args[1])
+		ns := normalizeNamespace(namespace)
+		err = c.Put(args[0], args[1], ns)
 		if err != nil {
 			Error(err.Error())
 			return
@@ -29,7 +30,7 @@ var putCmd = &cobra.Command{
 }
 
 func init() {
-
+	putCmd.Flags().StringVarP(&namespace, "namespace", "n", "default", "Namespace of the secret")
 	rootCmd.AddCommand(putCmd)
 
 }

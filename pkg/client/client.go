@@ -49,11 +49,12 @@ func (c *Client) Seal() error {
 	return err
 }
 
-func (c *Client) Put(key, value string) error {
+func (c *Client) Put(key, value, namespace string) error {
 
 	body := map[string]string{
-		"key":   key,
-		"value": value,
+		"key":       key,
+		"value":     value,
+		"namespace": namespace,
 	}
 
 	data, _ := json.Marshal(body)
@@ -80,9 +81,9 @@ func (c *Client) Put(key, value string) error {
 
 }
 
-func (c *Client) Get(key string) (string, error) {
+func (c *Client) Get(key, namespace string) (string, error) {
 
-	req, err := http.NewRequest("GET", c.BaseURL+"/secret/get?key="+key, nil)
+	req, err := http.NewRequest("GET", c.BaseURL+"/secret/get?key="+key+"&namespace="+namespace, nil)
 	if err != nil {
 		return "", err
 	}
@@ -108,8 +109,8 @@ func (c *Client) Get(key string) (string, error) {
 
 }
 
-func (c *Client) List() ([]string, error) {
-	req, err := http.NewRequest("GET", c.BaseURL+"/secret/list", nil)
+func (c *Client) List(namespace string) ([]string, error) {
+	req, err := http.NewRequest("GET", c.BaseURL+"/secret/list?namespace="+namespace, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -219,4 +220,66 @@ func (c *Client) RevokeToken(id string) error {
 	}
 	return nil
 
+}
+
+func (c *Client) CreateNamespace(name string) error {
+
+	body := map[string]string{
+		"name": name,
+	}
+
+	data, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("POST", c.BaseURL+"/namespace/create", bytes.NewBuffer(data))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf(string(b))
+	}
+
+	return nil
+}
+
+func (c *Client) ListNamespace() ([]string, error) {
+
+	req, err := http.NewRequest("GET", c.BaseURL+"/namespace/list", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf(string(bodyBytes))
+	}
+
+	var namespaces []string
+	if err := json.NewDecoder(resp.Body).Decode(&namespaces); err != nil {
+		return nil, err
+	}
+
+	return namespaces, nil
 }
