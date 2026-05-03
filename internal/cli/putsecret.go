@@ -3,6 +3,7 @@ package cli
 import (
 	"rune/internal/config"
 	"rune/pkg/client"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -19,8 +20,15 @@ var putCmd = &cobra.Command{
 			return
 		}
 		c := client.New("http://localhost:8080", token)
+		key := args[0]
+		value := args[1]
+
+		if strings.Contains(value, "$") {
+			Warn("Detected '$' in value. Use quotes to avoid shell expansion.")
+		}
+
 		ns := normalizeNamespace(namespace)
-		err = c.Put(args[0], args[1], ns)
+		err = c.Put(key, value, ns)
 		if err != nil {
 			Error(err.Error())
 			return
