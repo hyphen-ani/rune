@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"rune/internal/auth"
+	"rune/internal/constants"
 
 	bolt "go.etcd.io/bbolt"
 )
@@ -208,5 +209,47 @@ func (b *BoltStore) RevokeToken(id string) error {
 
 		updated, _ := json.Marshal(rec)
 		return bucket.Put([]byte(id), updated)
+	})
+}
+
+func (b *BoltStore) ListNamespaces() ([]string, error) {
+	var list []string
+
+	err := b.db.View(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte(constants.NamespacesBucket))
+		if bucket == nil {
+			return nil
+		}
+
+		return bucket.ForEach(func(k, v []byte) error {
+			list = append(list, string(k))
+			return nil
+		})
+	})
+
+	return list, err
+}
+
+func (b *BoltStore) NamespaceExists(namespace string) bool {
+	var exists bool
+
+	b.db.View(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte(constants.NamespacesBucket))
+		if bucket == nil {
+			return nil
+		}
+
+		val := bucket.Get([]byte(namespace))
+		exists = val != nil
+		return nil
+	})
+
+	return exists
+}
+
+func (b *BoltStore) CreateNamespace(namespace string) error {
+	return b.db.Update(func(tx *bolt.Tx) error {
+		bucket, _ := tx.CreateBucketIfNotExists([]byte(constants.NamespacesBucket))
+		return bucket.Put([]byte(namespace), []byte("1"))
 	})
 }

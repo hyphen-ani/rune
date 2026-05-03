@@ -7,6 +7,7 @@ import (
 	"rune/internal/api"
 	"rune/internal/auth"
 	"rune/internal/config"
+	"rune/internal/constants"
 	"rune/internal/crypto"
 	"rune/internal/middleware"
 	"rune/internal/seal"
@@ -67,6 +68,8 @@ func Start() {
 
 	}
 
+	store.CreateNamespace(constants.DefaultNamespace)
+
 	sealer := seal.NewManger()
 	secretService := service.NewSecretService(store, sealer)
 	tokenService := service.NewTokenService(store, sealer)
@@ -89,6 +92,8 @@ func Start() {
 	protected.HandleFunc("/token/create", handler.CreateToken)
 	protected.HandleFunc("/token/revoke", handler.RevokeToken)
 	protected.HandleFunc("/token/list", handler.ListTokens)
+	protected.HandleFunc("/namespace/create", handler.CreateNamespace)
+	protected.HandleFunc("/namespace/list", handler.ListNamespaces)
 
 	// APPLY MIDDLEWARE
 	secured := middleware.AuthMiddleware(store)(protected)

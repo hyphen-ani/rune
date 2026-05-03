@@ -15,6 +15,10 @@ type Store interface {
 	ListTokens() ([]auth.TokenRecord, error)
 	RevokeToken(id string) error
 	IsValidToken(hash string) bool
+
+	CreateNamespace(namespace string) error
+	NamespaceExists(namespace string) bool
+	ListNamespaces() ([]string, error)
 }
 
 const VerifyKey = "__rune_verify"

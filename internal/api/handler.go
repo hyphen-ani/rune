@@ -25,27 +25,30 @@ func NewHandler(s *service.SecretService, t *service.TokenService, store storage
 	}
 }
 
+// CORE VAULT
+
 func (h *Handler) PutSecret(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Key   string `json:"key"`
-		Value string `json:"value"`
+		Key       string `json:"key"`
+		Value     string `json:"value"`
+		Namespace string `json:"namespace"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid Request", http.StatusBadRequest)
 	}
 
-	err := h.secretService.Put(req.Key, req.Value)
+	err := h.secretService.Put(req.Namespace, req.Key, req.Value)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusForbidden)
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
 }
-
 func (h *Handler) GetSecret(w http.ResponseWriter, r *http.Request) {
+	namespace := r.URL.Query().Get("namespace")
 	key := r.URL.Query().Get("key")
 
-	val, err := h.secretService.Get(key)
+	val, err := h.secretService.Get(namespace, key)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -54,9 +57,9 @@ func (h *Handler) GetSecret(w http.ResponseWriter, r *http.Request) {
 		"value": val,
 	})
 }
-
 func (h *Handler) ListSecrets(w http.ResponseWriter, r *http.Request) {
-	keys, err := h.secretService.ListKeys()
+	namespace := r.URL.Query().Get("namespace")
+	keys, err := h.secretService.ListKeys(namespace)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusForbidden)
 		return
@@ -64,7 +67,6 @@ func (h *Handler) ListSecrets(w http.ResponseWriter, r *http.Request) {
 
 	json.NewEncoder(w).Encode(keys)
 }
-
 func (h *Handler) Unseal(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Passphrase string `json:"passphrase"`
@@ -90,12 +92,10 @@ func (h *Handler) Unseal(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("unsealed"))
 
 }
-
 func (h *Handler) Seal(w http.ResponseWriter, r *http.Request) {
 	h.sealer.Seal()
 	w.Write([]byte("sealed"))
 }
-
 func (h *Handler) Status(w http.ResponseWriter, r *http.Request) {
 	if h.sealer.IsSealed() {
 		w.Write([]byte("sealed"))
@@ -103,6 +103,8 @@ func (h *Handler) Status(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("unsealed"))
 	}
 }
+
+// TOKEN HANDLERS
 
 func (h *Handler) CreateToken(w http.ResponseWriter, r *http.Request) {
 	var req struct {
@@ -127,7 +129,6 @@ func (h *Handler) CreateToken(w http.ResponseWriter, r *http.Request) {
 
 	json.NewEncoder(w).Encode(resp)
 }
-
 func (h *Handler) ListTokens(w http.ResponseWriter, r *http.Request) {
 
 	tokens, err := h.tokenService.List()
@@ -139,7 +140,6 @@ func (h *Handler) ListTokens(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(tokens)
 
 }
-
 func (h *Handler) RevokeToken(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		ID string `json:"id"`
@@ -157,4 +157,46 @@ func (h *Handler) RevokeToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Write([]byte("revoked"))
+}
+
+// NAMESPACE HANDLERS
+
+func (h *Handler) CreateNamespace(w http.ResponseWriter, r *http.Request) {
+
+	if h.sealer.IsSealed() {
+		http.Error(w, "vault is sealed", http.StatusForbidden)
+		return
+	}
+
+	var req struct {
+		Name string `json:"name"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid Request", http.StatusBadRequest)
+		return
+	}
+
+	err := h.store.CreateNamespace(req.Name)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Write([]byte("namespace created"))
+}
+func (h *Handler) ListNamespaces(w http.ResponseWriter, r *http.Request) {
+
+	if h.sealer.IsSealed() {
+		http.Error(w, "vault is sealed", http.StatusForbidden)
+		return
+	}
+
+	namespaces, err := h.store.ListNamespaces()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(namespaces)
 }

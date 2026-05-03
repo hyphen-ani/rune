@@ -10,7 +10,7 @@ import (
 
 var listCmd = &cobra.Command{
 	Use:   "list",
-	Short: "List all stored keys",
+	Short: "List all stored keys in the vault (filtered by namespace)",
 	Run: func(cmd *cobra.Command, args []string) {
 
 		token, err := config.LoadToken()
@@ -20,7 +20,8 @@ var listCmd = &cobra.Command{
 		}
 
 		c := client.New("http://localhost:8080", token)
-		keys, err := c.List()
+		ns := normalizeNamespace(namespace)
+		keys, err := c.List(ns)
 		if err != nil {
 			Error(err.Error())
 			return
@@ -39,5 +40,6 @@ var listCmd = &cobra.Command{
 }
 
 func init() {
+	listCmd.Flags().StringVarP(&namespace, "namespace", "n", "", "Namespace")
 	rootCmd.AddCommand(listCmd)
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var namespace string
 var getCmd = &cobra.Command{
 
 	Use:   "get [key]",
@@ -20,7 +21,8 @@ var getCmd = &cobra.Command{
 			return
 		}
 		c := client.New("http://localhost:8080", token)
-		val, err := c.Get(args[0])
+		ns := normalizeNamespace(namespace)
+		val, err := c.Get(args[0], ns)
 		if err != nil {
 			Error(err.Error())
 			return
@@ -31,5 +33,6 @@ var getCmd = &cobra.Command{
 }
 
 func init() {
+	getCmd.Flags().StringVarP(&namespace, "namespace", "n", "", "The vault namespace to use")
 	rootCmd.AddCommand(getCmd)
 }
