@@ -10,18 +10,21 @@ import (
 )
 
 type Handler struct {
-	secretService *service.SecretService
-	tokenService  *service.TokenService
-	store         storage.Store
-	sealer        *seal.Manager
+	namespaceService *service.NamespaceService
+	secretService    *service.SecretService
+	tokenService     *service.TokenService
+	store            storage.Store
+	sealer           *seal.Manager
 }
 
-func NewHandler(s *service.SecretService, t *service.TokenService, store storage.Store, sealer *seal.Manager) *Handler {
+func NewHandler(s *service.SecretService, t *service.TokenService, ns *service.NamespaceService,
+	store storage.Store, sealer *seal.Manager) *Handler {
 	return &Handler{
-		secretService: s,
-		tokenService:  t,
-		store:         store,
-		sealer:        sealer,
+		secretService:    s,
+		tokenService:     t,
+		namespaceService: ns,
+		store:            store,
+		sealer:           sealer,
 	}
 }
 
@@ -66,6 +69,21 @@ func (h *Handler) ListSecrets(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(keys)
+}
+func (h *Handler) DeleteSecret(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Key       string `json:"key"`
+		Namespace string `json:"namespace"`
+	}
+
+	json.NewDecoder(r.Body).Decode(&req)
+	err := h.secretService.Delete(req.Namespace, req.Key)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+
+	w.Write([]byte("deleted"))
 }
 func (h *Handler) Unseal(w http.ResponseWriter, r *http.Request) {
 	var req struct {
@@ -199,4 +217,18 @@ func (h *Handler) ListNamespaces(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(namespaces)
+}
+func (h *Handler) DeleteNamespace(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name string `json:"name"`
+	}
+
+	json.NewDecoder(r.Body).Decode(&req)
+	err := h.namespaceService.DeleteNamespace(req.Name)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+
+	w.Write([]byte("namespace deleted"))
 }

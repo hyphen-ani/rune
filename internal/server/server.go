@@ -73,7 +73,8 @@ func Start() {
 	sealer := seal.NewManger()
 	secretService := service.NewSecretService(store, sealer)
 	tokenService := service.NewTokenService(store, sealer)
-	handler := api.NewHandler(secretService, tokenService, store, sealer)
+	namespaceService := service.NewNamespaceService(store)
+	handler := api.NewHandler(secretService, tokenService, namespaceService, store, sealer)
 
 	// PUBLIC
 	public := http.NewServeMux()
@@ -87,6 +88,7 @@ func Start() {
 	protected := http.NewServeMux()
 	protected.HandleFunc("/secret/put", handler.PutSecret)
 	protected.HandleFunc("/secret/get", handler.GetSecret)
+	protected.HandleFunc("/secret/delete", handler.DeleteSecret)
 	protected.HandleFunc("/secret/list", handler.ListSecrets)
 	protected.HandleFunc("/seal", handler.Seal)
 	protected.HandleFunc("/token/create", handler.CreateToken)
@@ -94,6 +96,7 @@ func Start() {
 	protected.HandleFunc("/token/list", handler.ListTokens)
 	protected.HandleFunc("/namespace/create", handler.CreateNamespace)
 	protected.HandleFunc("/namespace/list", handler.ListNamespaces)
+	protected.HandleFunc("/namespace/delete", handler.DeleteNamespace)
 
 	// APPLY MIDDLEWARE
 	secured := middleware.AuthMiddleware(store)(protected)

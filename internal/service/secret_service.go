@@ -101,6 +101,21 @@ func (s *SecretService) Get(namespace, key string) (string, error) {
 	return string(plaintext), nil
 }
 
+func (s *SecretService) Delete(namespace, key string) error {
+	if s.sealer.IsSealed() {
+		return errors.New("[OPERATION DENIED]: Vault is Sealed")
+	}
+
+	ns := normalizeNamespace(namespace)
+
+	if !s.store.NamespaceExists(ns) {
+		return errors.New("[OPERATION DENIED]: Namespace does not exist")
+	}
+
+	fullKey := ns + "/" + key
+	return s.store.Delete(fullKey)
+}
+
 func (s *SecretService) ListKeys(namespace string) ([]string, error) {
 	if s.sealer.IsSealed() {
 		return nil, errors.New("[OPERATION DENIED]: Vault is Sealed")
