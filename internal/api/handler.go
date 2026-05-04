@@ -219,6 +219,12 @@ func (h *Handler) ListNamespaces(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(namespaces)
 }
 func (h *Handler) DeleteNamespace(w http.ResponseWriter, r *http.Request) {
+
+	if h.sealer.IsSealed() {
+		http.Error(w, "vault is sealed", http.StatusForbidden)
+		return
+	}
+
 	var req struct {
 		Name string `json:"name"`
 	}
