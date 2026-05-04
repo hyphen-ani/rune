@@ -5,6 +5,7 @@ import "rune/internal/auth"
 type Store interface {
 	Put(key string, record SecretRecord) error
 	Get(key string) (SecretRecord, error)
+	Delete(key string) error
 	ListKeys() ([]string, error)
 
 	GetSalt() ([]byte, error)
@@ -19,6 +20,7 @@ type Store interface {
 	CreateNamespace(namespace string) error
 	NamespaceExists(namespace string) bool
 	ListNamespaces() ([]string, error)
+	DeleteNamespace(namespace string) error
 }
 
 const VerifyKey = "__rune_verify"

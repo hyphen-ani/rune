@@ -21,6 +21,8 @@ func New(baseURL string, token string) *Client {
 	}
 }
 
+// CORE VAULT MANAGEMENT
+
 func (c *Client) Unseal(passphrase string) error {
 	body := map[string]string{
 		"passphrase": passphrase,
@@ -41,14 +43,12 @@ func (c *Client) Unseal(passphrase string) error {
 	return nil
 
 }
-
 func (c *Client) Seal() error {
 	req, _ := http.NewRequest("POST", c.BaseURL+"/seal", nil)
 	req.Header.Set("Authorization", "Bearer "+c.Token)
 	_, err := http.DefaultClient.Do(req)
 	return err
 }
-
 func (c *Client) Put(key, value, namespace string) error {
 
 	body := map[string]string{
@@ -80,7 +80,6 @@ func (c *Client) Put(key, value, namespace string) error {
 	return nil
 
 }
-
 func (c *Client) Get(key, namespace string) (string, error) {
 
 	req, err := http.NewRequest("GET", c.BaseURL+"/secret/get?key="+key+"&namespace="+namespace, nil)
@@ -108,7 +107,6 @@ func (c *Client) Get(key, namespace string) (string, error) {
 	return result["value"], nil
 
 }
-
 func (c *Client) List(namespace string) ([]string, error) {
 	req, err := http.NewRequest("GET", c.BaseURL+"/secret/list?namespace="+namespace, nil)
 	if err != nil {
@@ -139,7 +137,32 @@ func (c *Client) List(namespace string) ([]string, error) {
 
 	return keys, nil
 }
+func (c *Client) Delete(key, namespace string) error {
+	body := map[string]string{
+		"key":       key,
+		"namespace": namespace,
+	}
 
+	data, _ := json.Marshal(body)
+
+	req, _ := http.NewRequest("POST", c.BaseURL+"/secret/delete", bytes.NewBuffer(data))
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf(string(b))
+	}
+
+	return nil
+}
 func (c *Client) Status() (string, error) {
 
 	resp, err := http.Get(c.BaseURL + "/status")
@@ -155,6 +178,8 @@ func (c *Client) Status() (string, error) {
 	return string(body), nil
 
 }
+
+// TOKEN MANAGEMENT
 
 func (c *Client) CreateToken(name string) (string, auth.TokenRecord, error) {
 	body := map[string]string{
@@ -180,7 +205,6 @@ func (c *Client) CreateToken(name string) (string, auth.TokenRecord, error) {
 	json.NewDecoder(resp.Body).Decode(&result)
 	return result.Token, result.Record, nil
 }
-
 func (c *Client) ListTokens() ([]auth.TokenRecord, error) {
 
 	req, _ := http.NewRequest("GET", c.BaseURL+"/token/list", nil)
@@ -199,7 +223,6 @@ func (c *Client) ListTokens() ([]auth.TokenRecord, error) {
 	return tokens, nil
 
 }
-
 func (c *Client) RevokeToken(id string) error {
 
 	body := map[string]string{
@@ -221,6 +244,8 @@ func (c *Client) RevokeToken(id string) error {
 	return nil
 
 }
+
+// NAMESPACES
 
 func (c *Client) CreateNamespace(name string) error {
 
@@ -255,7 +280,6 @@ func (c *Client) CreateNamespace(name string) error {
 
 	return nil
 }
-
 func (c *Client) ListNamespace() ([]string, error) {
 
 	req, err := http.NewRequest("GET", c.BaseURL+"/namespace/list", nil)
@@ -282,4 +306,29 @@ func (c *Client) ListNamespace() ([]string, error) {
 	}
 
 	return namespaces, nil
+}
+func (c *Client) DeleteNamespace(name string) error {
+	body := map[string]string{
+		"name": name,
+	}
+
+	data, _ := json.Marshal(body)
+
+	req, _ := http.NewRequest("POST", c.BaseURL+"/namespace/delete", bytes.NewBuffer(data))
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf(string(b))
+	}
+
+	return nil
 }

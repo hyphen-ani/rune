@@ -67,6 +67,16 @@ func (b *BoltStore) Get(key string) (SecretRecord, error) {
 	return record, err
 }
 
+func (b *BoltStore) Delete(key string) error {
+	return b.db.Update(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte(bucketName))
+		if bucket == nil {
+			return errors.New("[NOT FOUND] Secret not Found")
+		}
+		return bucket.Delete([]byte(key))
+	})
+}
+
 func (b *BoltStore) SaveSalt(salt []byte) error {
 	return b.db.Update(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte(bucketName))
@@ -92,7 +102,6 @@ func (b *BoltStore) GetSalt() ([]byte, error) {
 }
 
 func (b *BoltStore) IsValidToken(hash string) bool {
-	//TODO implement me
 	var exists bool
 
 	err := b.db.View(func(tx *bolt.Tx) error {
@@ -251,5 +260,15 @@ func (b *BoltStore) CreateNamespace(namespace string) error {
 	return b.db.Update(func(tx *bolt.Tx) error {
 		bucket, _ := tx.CreateBucketIfNotExists([]byte(constants.NamespacesBucket))
 		return bucket.Put([]byte(namespace), []byte("1"))
+	})
+}
+
+func (b *BoltStore) DeleteNamespace(namespace string) error {
+	return b.db.Update(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte(constants.NamespacesBucket))
+		if bucket == nil {
+			return nil
+		}
+		return bucket.Delete([]byte(namespace))
 	})
 }
