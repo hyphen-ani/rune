@@ -209,18 +209,71 @@ OPTIONS:
 ### Examples
 
 ```bash
-# Check vault status before unsealing
+# Start the Rune server
+rune-server
+
+# Check current vault status
 rune status
 
-# Store secrets using path-style keys
-rune put app/prod/db-url postgres://user:pass@host/db
-rune put app/prod/api-key sk-abc123
+# Unseal the vault
+rune unseal
 
-# Retrieve a secret and pipe it to another command
-rune get app/prod/db-url | psql
+# Authenticate with Rune using a token
+rune login <token>
 
-# Seal after use
+# Store secrets in the default namespace
+rune put db/password my-secret-password
+rune put api/key sk_live_abc123
+
+# Retrieve secrets from the default namespace
+rune get db/password
+rune get api/key
+
+# List all secrets in the default namespace
+rune list
+
+# Delete a secret from the default namespace
+rune delete db/password
+
+# Create a new namespace
+rune namespace create springboot
+
+# List all namespaces
+rune namespace list
+
+# Store secrets inside a namespace
+rune put db/password supersecret -n springboot
+rune put jwt/secret myjwtsecret -n springboot
+
+# Retrieve secrets from a namespace
+rune get db/password -n springboot
+
+# List secrets from a namespace
+rune list -n springboot
+
+# Delete a secret from a namespace
+rune delete jwt/secret -n springboot
+
+# Delete a namespace
+rune namespace delete springboot
+
+# Create a new token
+rune token create backend-service
+
+# Create a named token
+rune token create --name backend-service
+
+# List all tokens
+rune token list
+
+# Revoke a token
+rune token revoke <token-id>
+
+# Seal the vault
 rune seal
+
+# Check installed Rune version
+rune --version
 ```
 
 ---
