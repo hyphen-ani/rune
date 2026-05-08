@@ -3,3 +3,5 @@ bin/rune-server
 
 rune.db
 .env
+dist/**
+.gitignore
