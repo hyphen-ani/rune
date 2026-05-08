@@ -24,8 +24,8 @@ echo "Detected ARCH: $ARCH"
 
 echo "Downloading Rune..."
 
-curl -fL "$REPO/$VERSION/$RUNE_BINARY" -o "$TMP_DIR/rune"
-curl -fL "$REPO/$VERSION/$SERVER_BINARY" -o "$TMP_DIR/rune-server"
+curl -L "$REPO/$VERSION/$RUNE_BINARY" -o "$TMP_DIR/rune"
+curl -L "$REPO/$VERSION/$SERVER_BINARY" -o "$TMP_DIR/rune-server"
 
 chmod +x "$TMP_DIR/rune"
 chmod +x "$TMP_DIR/rune-server"
