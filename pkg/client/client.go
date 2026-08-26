@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"rune/internal/auth"
 )
 
@@ -163,6 +164,38 @@ func (c *Client) Delete(key, namespace string) error {
 
 	return nil
 }
+func (c *Client) Rotate(key string, namespace string) (string, error) {
+	url := c.BaseURL + "/secret/rotate?key=" + url.QueryEscape(key) + "&namespace=" + url.QueryEscape(namespace)
+
+	req, err := http.NewRequest("POST", url, nil)
+	if err != nil {
+		return "", err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("%s", body)
+	}
+
+	var result map[string]string
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	if err != nil {
+		return "", err
+	}
+
+	return result["value"], nil
+
+}
 func (c *Client) Status() (string, error) {
 
 	resp, err := http.Get(c.BaseURL + "/status")
@@ -181,9 +214,10 @@ func (c *Client) Status() (string, error) {
 
 // TOKEN MANAGEMENT
 
-func (c *Client) CreateToken(name string) (string, auth.TokenRecord, error) {
+func (c *Client) CreateToken(name string, namespace string) (string, auth.TokenRecord, error) {
 	body := map[string]string{
-		"name": name,
+		"name":      name,
+		"namespace": namespace,
 	}
 	data, _ := json.Marshal(body)
 	req, _ := http.NewRequest("POST", c.BaseURL+"/token/create", bytes.NewBuffer(data))

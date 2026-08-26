@@ -53,6 +53,7 @@ func Start() {
 			ID:        "root",
 			Hash:      hash,
 			Name:      "root",
+			Namespace: "*",
 			CreatedAt: time.Now().Format(time.RFC3339),
 			Revoked:   false,
 		}
@@ -90,6 +91,7 @@ func Start() {
 	protected.HandleFunc("/secret/get", handler.GetSecret)
 	protected.HandleFunc("/secret/delete", handler.DeleteSecret)
 	protected.HandleFunc("/secret/list", handler.ListSecrets)
+	protected.HandleFunc("/secret/rotate", handler.RotateSecret)
 	protected.HandleFunc("/seal", handler.Seal)
 	protected.HandleFunc("/token/create", handler.CreateToken)
 	protected.HandleFunc("/token/revoke", handler.RevokeToken)

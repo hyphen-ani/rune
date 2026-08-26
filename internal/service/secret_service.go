@@ -2,11 +2,13 @@ package service
 
 import (
 	"errors"
+	"rune/internal/auth"
 	"rune/internal/constants"
 	"rune/internal/crypto"
 	"rune/internal/seal"
 	"rune/internal/storage"
 	"strings"
+	"time"
 )
 
 type SecretService struct {
@@ -62,14 +64,19 @@ func (s *SecretService) Put(namespace, key, value string) error {
 		return err
 	}
 
+	now := time.Now().Format(time.RFC3339)
+
 	record := storage.SecretRecord{
 		Ciphertext: ciphertext,
 		Nonce:      nonce,
+		CreatedAt:  now,
+		UpdatedAt:  now,
+		RotatedAt:  "",
+		Version:    1,
 	}
 
 	return s.store.Put(fullKey, record)
 }
-
 func (s *SecretService) Get(namespace, key string) (string, error) {
 
 	if s.sealer.IsSealed() {
@@ -100,7 +107,6 @@ func (s *SecretService) Get(namespace, key string) (string, error) {
 
 	return string(plaintext), nil
 }
-
 func (s *SecretService) Delete(namespace, key string) error {
 	if s.sealer.IsSealed() {
 		return errors.New("[OPERATION DENIED]: Vault is Sealed")
@@ -115,7 +121,6 @@ func (s *SecretService) Delete(namespace, key string) error {
 	fullKey := ns + "/" + key
 	return s.store.Delete(fullKey)
 }
-
 func (s *SecretService) ListKeys(namespace string) ([]string, error) {
 	if s.sealer.IsSealed() {
 		return nil, errors.New("[OPERATION DENIED]: Vault is Sealed")
@@ -141,4 +146,52 @@ func (s *SecretService) ListKeys(namespace string) ([]string, error) {
 	}
 
 	return filtered, nil
+}
+
+func (s *SecretService) Rotate(namespace string, key string) (string, error) {
+	if s.sealer.IsSealed() {
+		return "", errors.New("[OPERATION DENIED]: Vault is Sealed")
+	}
+
+	ns := normalizeNamespace(namespace)
+
+	if !s.store.NamespaceExists(ns) {
+		return "", errors.New("[OPERATION DENIED]: Namespace does not exist")
+	}
+
+	fullKey := ns + "/" + key
+
+	existing, err := s.store.Get(fullKey)
+	if err != nil {
+		return "", err
+	}
+
+	newValue, err := auth.GenerateSecret()
+	if err != nil {
+		return "", err
+	}
+
+	k := s.sealer.GetKey()
+	ciphertext, nonce, err := crypto.Encrypt(k, []byte(newValue))
+	if err != nil {
+		return "", err
+	}
+
+	now := time.Now().Format(time.RFC3339)
+	version := existing.Version + 1
+	record := storage.SecretRecord{
+		Ciphertext: ciphertext,
+		Nonce:      nonce,
+		CreatedAt:  existing.CreatedAt,
+		UpdatedAt:  now,
+		RotatedAt:  now,
+		Version:    version,
+	}
+
+	err = s.store.Put(fullKey, record)
+	if err != nil {
+		return "", err
+	}
+
+	return newValue, nil
 }

@@ -19,11 +19,9 @@ func NewNamespaceService(store storage.Store) *NamespaceService {
 func (s *NamespaceService) CreateNamespace(namespace string) error {
 	return s.store.CreateNamespace(namespace)
 }
-
 func (s *NamespaceService) ListNamespace() ([]string, error) {
 	return s.store.ListNamespaces()
 }
-
 func (s *NamespaceService) DeleteNamespace(namespace string) error {
 
 	if namespace == "default" {

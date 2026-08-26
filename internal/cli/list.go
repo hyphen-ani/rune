@@ -20,7 +20,7 @@ var listCmd = &cobra.Command{
 		}
 
 		c := client.New("http://localhost:8080", token)
-		ns := normalizeNamespace(namespace)
+		ns := normalizeNamespace(namespaceName)
 		keys, err := c.List(ns)
 		if err != nil {
 			Error(err.Error())
@@ -40,6 +40,6 @@ var listCmd = &cobra.Command{
 }
 
 func init() {
-	listCmd.Flags().StringVarP(&namespace, "namespace", "n", "", "Namespace")
+	listCmd.Flags().StringVarP(&namespaceName, "namespace", "n", "", "Namespace")
 	rootCmd.AddCommand(listCmd)
 }
