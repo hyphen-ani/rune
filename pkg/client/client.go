@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"rune/internal/auth"
 )
 
@@ -162,6 +163,38 @@ func (c *Client) Delete(key, namespace string) error {
 	}
 
 	return nil
+}
+func (c *Client) Rotate(key string, namespace string) (string, error) {
+	url := c.BaseURL + "/secret/rotate?key=" + url.QueryEscape(key) + "&namespace=" + url.QueryEscape(namespace)
+
+	req, err := http.NewRequest("POST", url, nil)
+	if err != nil {
+		return "", err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("%s", body)
+	}
+
+	var result map[string]string
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	if err != nil {
+		return "", err
+	}
+
+	return result["value"], nil
+
 }
 func (c *Client) Status() (string, error) {
 

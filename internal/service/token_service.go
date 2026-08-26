@@ -20,7 +20,6 @@ func NewTokenService(store storage.Store, sealer *seal.Manager) *TokenService {
 		sealer: sealer,
 	}
 }
-
 func (s *TokenService) Create(name string, namespace string) (string, auth.TokenRecord, error) {
 
 	if s.sealer.IsSealed() {
@@ -48,7 +47,6 @@ func (s *TokenService) Create(name string, namespace string) (string, auth.Token
 	err := s.store.SaveToken(record)
 	return token, record, err
 }
-
 func (s *TokenService) Revoke(id string) error {
 	if s.sealer.IsSealed() {
 		return errors.New("[OPERATION DENIED]: Vault is Sealed")
@@ -58,7 +56,6 @@ func (s *TokenService) Revoke(id string) error {
 	}
 	return s.store.RevokeToken(id)
 }
-
 func (s *TokenService) List() ([]auth.TokenRecord, error) {
 	if s.sealer.IsSealed() {
 		return nil, errors.New("[OPERATION DENIED]: Vault is Sealed")

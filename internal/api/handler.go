@@ -111,6 +111,30 @@ func (h *Handler) DeleteSecret(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusNoContent)
 }
+func (h *Handler) RotateSecret(w http.ResponseWriter, r *http.Request) {
+	namespaceName := namespace.Normalize(r.URL.Query().Get("namespace"))
+	key := r.URL.Query().Get("key")
+	if key == "" {
+		http.Error(w, "Invalid Request", http.StatusBadRequest)
+		return
+	}
+
+	if !middleware.AuthorizeNamespace(r, namespaceName) {
+		http.Error(w, "[AUTHORIZATION DENIED]: Token cannot access this namespace", http.StatusForbidden)
+		return
+	}
+
+	value, err := h.secretService.Rotate(namespaceName, key)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]string{
+		"value": value,
+	})
+}
+
 func (h *Handler) Unseal(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Passphrase string `json:"passphrase"`

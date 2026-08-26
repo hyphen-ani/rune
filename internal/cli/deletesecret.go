@@ -22,7 +22,7 @@ var deleteCmd = &cobra.Command{
 			return
 		}
 
-		ns := normalizeNamespace(namespace)
+		ns := normalizeNamespace(namespaceName)
 		fmt.Printf("Are you sure you want to delete secret '%s' (namespace: %s)? (y/N): ", key, ns)
 
 		var confirm string
@@ -46,6 +46,6 @@ var deleteCmd = &cobra.Command{
 }
 
 func init() {
-	deleteCmd.Flags().StringVarP(&namespace, "namespace", "n", "", "Namespace")
+	deleteCmd.Flags().StringVarP(&namespaceName, "namespace", "n", "", "Namespace")
 	rootCmd.AddCommand(deleteCmd)
 }

@@ -1,6 +1,8 @@
 package storage
 
-import "rune/internal/auth"
+import (
+	"rune/internal/auth"
+)
 
 type Store interface {
 	Put(key string, record SecretRecord) error
@@ -28,6 +30,12 @@ const VerifyKey = "__rune_verify"
 type SecretRecord struct {
 	Ciphertext []byte
 	Nonce      []byte
+
+	CreatedAt string `json:"created_at"`
+	UpdatedAt string `json:"updated_at"`
+
+	RotatedAt string `json:"rotated_at"`
+	Version   int    `json:"version"`
 }
 
 var _ Store = (*BoltStore)(nil)

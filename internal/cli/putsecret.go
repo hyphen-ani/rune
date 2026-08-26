@@ -27,7 +27,7 @@ var putCmd = &cobra.Command{
 			Warn("Detected '$' in value. Use quotes to avoid shell expansion.")
 		}
 
-		ns := normalizeNamespace(namespace)
+		ns := normalizeNamespace(namespaceName)
 		err = c.Put(key, value, ns)
 		if err != nil {
 			Error(err.Error())
@@ -38,7 +38,7 @@ var putCmd = &cobra.Command{
 }
 
 func init() {
-	putCmd.Flags().StringVarP(&namespace, "namespace", "n", "default", "Namespace of the secret")
+	putCmd.Flags().StringVarP(&namespaceName, "namespace", "n", "default", "Namespace of the secret")
 	rootCmd.AddCommand(putCmd)
 
 }
