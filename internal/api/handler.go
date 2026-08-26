@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"rune/internal/crypto"
+	"rune/internal/middleware"
+	"rune/internal/namespace"
 	"rune/internal/seal"
 	"rune/internal/service"
 	"rune/internal/storage"
@@ -36,11 +38,20 @@ func (h *Handler) PutSecret(w http.ResponseWriter, r *http.Request) {
 		Value     string `json:"value"`
 		Namespace string `json:"namespace"`
 	}
+
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid Request", http.StatusBadRequest)
+		return
 	}
 
-	err := h.secretService.Put(req.Namespace, req.Key, req.Value)
+	namespaceName := namespace.Normalize(req.Namespace)
+
+	if !middleware.AuthorizeNamespace(r, namespaceName) {
+		http.Error(w, "[AUTHORIZATION DENIED]: Token cannot access this namespace", http.StatusForbidden)
+		return
+	}
+
+	err := h.secretService.Put(namespaceName, req.Key, req.Value)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusForbidden)
 		return
@@ -48,10 +59,16 @@ func (h *Handler) PutSecret(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 }
 func (h *Handler) GetSecret(w http.ResponseWriter, r *http.Request) {
-	namespace := r.URL.Query().Get("namespace")
+
+	namespaceName := namespace.Normalize(r.URL.Query().Get("namespace"))
 	key := r.URL.Query().Get("key")
 
-	val, err := h.secretService.Get(namespace, key)
+	if !middleware.AuthorizeNamespace(r, namespaceName) {
+		http.Error(w, "[AUTHORIZATION DENIED]: Token cannot access this namespace", http.StatusForbidden)
+		return
+	}
+
+	val, err := h.secretService.Get(namespaceName, key)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -61,8 +78,14 @@ func (h *Handler) GetSecret(w http.ResponseWriter, r *http.Request) {
 	})
 }
 func (h *Handler) ListSecrets(w http.ResponseWriter, r *http.Request) {
-	namespace := r.URL.Query().Get("namespace")
-	keys, err := h.secretService.ListKeys(namespace)
+	namespaceName := namespace.Normalize(r.URL.Query().Get("namespace"))
+
+	if !middleware.AuthorizeNamespace(r, namespaceName) {
+		http.Error(w, "[AUTHORIZATION DENIED]: Token cannot access this namespace", http.StatusForbidden)
+		return
+	}
+
+	keys, err := h.secretService.ListKeys(namespaceName)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusForbidden)
 		return
@@ -71,19 +94,22 @@ func (h *Handler) ListSecrets(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(keys)
 }
 func (h *Handler) DeleteSecret(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Key       string `json:"key"`
-		Namespace string `json:"namespace"`
+	key := r.URL.Query().Get("key")
+	namespaceName := namespace.Normalize(r.URL.Query().Get("namespace"))
+
+	if !middleware.AuthorizeNamespace(r, namespaceName) {
+		http.Error(w, "[AUTHORIZATION DENIED]: Token cannot access this namespace", http.StatusForbidden)
+		return
 	}
 
-	json.NewDecoder(r.Body).Decode(&req)
-	err := h.secretService.Delete(req.Namespace, req.Key)
+	err := h.secretService.Delete(namespaceName, key)
+
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusForbidden)
 		return
 	}
 
-	w.Write([]byte("deleted"))
+	w.WriteHeader(http.StatusNoContent)
 }
 func (h *Handler) Unseal(w http.ResponseWriter, r *http.Request) {
 	var req struct {
@@ -125,8 +151,15 @@ func (h *Handler) Status(w http.ResponseWriter, r *http.Request) {
 // TOKEN HANDLERS
 
 func (h *Handler) CreateToken(w http.ResponseWriter, r *http.Request) {
+
+	if !middleware.IsRoot(r) {
+		http.Error(w, "[AUTHORIZATION DENIED]: Root Access Required", http.StatusForbidden)
+		return
+	}
+
 	var req struct {
-		Name string `json:"name"`
+		Name      string `json:"name"`
+		Namespace string `json:"namespace"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -134,7 +167,7 @@ func (h *Handler) CreateToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, record, err := h.tokenService.Create(req.Name)
+	token, record, err := h.tokenService.Create(req.Name, req.Namespace)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusForbidden)
 		return
@@ -149,6 +182,11 @@ func (h *Handler) CreateToken(w http.ResponseWriter, r *http.Request) {
 }
 func (h *Handler) ListTokens(w http.ResponseWriter, r *http.Request) {
 
+	if !middleware.IsRoot(r) {
+		http.Error(w, "[AUTHORIZATION DENIED]: Root Access Required", http.StatusForbidden)
+		return
+	}
+
 	tokens, err := h.tokenService.List()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -159,6 +197,17 @@ func (h *Handler) ListTokens(w http.ResponseWriter, r *http.Request) {
 
 }
 func (h *Handler) RevokeToken(w http.ResponseWriter, r *http.Request) {
+
+	if !middleware.IsRoot(r) {
+		http.Error(w, "[AUTHORIZATION DENIED]: Root Access Required", http.StatusForbidden)
+		return
+	}
+
+	if !middleware.IsRoot(r) {
+		http.Error(w, "[AUTHORIZATION DENIED]: Root Access Required", http.StatusForbidden)
+		return
+	}
+
 	var req struct {
 		ID string `json:"id"`
 	}
@@ -180,6 +229,11 @@ func (h *Handler) RevokeToken(w http.ResponseWriter, r *http.Request) {
 // NAMESPACE HANDLERS
 
 func (h *Handler) CreateNamespace(w http.ResponseWriter, r *http.Request) {
+
+	if !middleware.IsRoot(r) {
+		http.Error(w, "[AUTHORIZATION DENIED]: Root Access Required", http.StatusForbidden)
+		return
+	}
 
 	if h.sealer.IsSealed() {
 		http.Error(w, "vault is sealed", http.StatusForbidden)
@@ -204,6 +258,11 @@ func (h *Handler) CreateNamespace(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("namespace created"))
 }
 func (h *Handler) ListNamespaces(w http.ResponseWriter, r *http.Request) {
+
+	if !middleware.IsRoot(r) {
+		http.Error(w, "[AUTHORIZATION DENIED]: Root Access Required", http.StatusForbidden)
+		return
+	}
 
 	if h.sealer.IsSealed() {
 		http.Error(w, "vault is sealed", http.StatusForbidden)

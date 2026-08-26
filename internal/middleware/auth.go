@@ -1,8 +1,10 @@
 package middleware
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"log"
 	"net/http"
 	"rune/internal/storage"
 	"strings"
@@ -24,8 +26,8 @@ func AuthMiddleware(store storage.Store) func(http.Handler) http.Handler {
 				return
 			}
 
-			parts := strings.Split(authHeader, " ")
-			if len(parts) != 2 {
+			parts := strings.SplitN(authHeader, " ", 2)
+			if len(parts) != 2 || parts[0] != "Bearer" {
 				http.Error(w, "invalid auth format or token", http.StatusUnauthorized)
 				return
 			}
@@ -35,13 +37,20 @@ func AuthMiddleware(store storage.Store) func(http.Handler) http.Handler {
 			hash := sha256.Sum256([]byte(token))
 			hashStr := hex.EncodeToString(hash[:])
 
-			_, err := store.GetTokenByHash(hashStr)
+			record, err := store.GetTokenByHash(hashStr)
 			if err != nil {
 				http.Error(w, "invalid token", http.StatusUnauthorized)
 				return
 			}
+			log.Printf("AUTH DEBUG -> ID=%q Name=%q Namespace=%q Revoked=%t", record.ID, record.Name, record.Namespace, record.Revoked)
 
-			next.ServeHTTP(w, r)
+			if record.Revoked {
+				http.Error(w, "token has been revoked", http.StatusUnauthorized)
+				return
+			}
+
+			ctx := context.WithValue(r.Context(), TokenContextKey, record)
+			next.ServeHTTP(w, r.WithContext(ctx))
 
 		})
 	}

@@ -11,6 +11,7 @@ type TokenRecord struct {
 	ID        string `json:"id"`
 	Hash      string `json:"hash"`
 	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
 	CreatedAt string `json:"created_at"`
 	Revoked   bool   `json:"revoked"`
 }

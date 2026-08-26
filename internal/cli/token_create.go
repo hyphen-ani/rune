@@ -9,6 +9,7 @@ import (
 )
 
 var tokenName string
+var tokenNamespace string
 
 var tokenCreateCmd = &cobra.Command{
 	Use:   "create",
@@ -32,7 +33,7 @@ var tokenCreateCmd = &cobra.Command{
 		}
 
 		c := client.New("http://localhost:8080", token)
-		newToken, record, err := c.CreateToken(name)
+		newToken, record, err := c.CreateToken(name, tokenNamespace)
 		if err != nil {
 			Error(err.Error())
 			return
@@ -51,5 +52,6 @@ var tokenCreateCmd = &cobra.Command{
 
 func init() {
 	tokenCreateCmd.Flags().StringVar(&tokenName, "name", "", "Name of the token")
+	tokenCreateCmd.Flags().StringVarP(&tokenNamespace, "namespace", "n", "default", "Namespace of the token is allowed to access")
 	tokenCmd.AddCommand(tokenCreateCmd)
 }

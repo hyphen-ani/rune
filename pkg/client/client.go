@@ -181,9 +181,10 @@ func (c *Client) Status() (string, error) {
 
 // TOKEN MANAGEMENT
 
-func (c *Client) CreateToken(name string) (string, auth.TokenRecord, error) {
+func (c *Client) CreateToken(name string, namespace string) (string, auth.TokenRecord, error) {
 	body := map[string]string{
-		"name": name,
+		"name":      name,
+		"namespace": namespace,
 	}
 	data, _ := json.Marshal(body)
 	req, _ := http.NewRequest("POST", c.BaseURL+"/token/create", bytes.NewBuffer(data))

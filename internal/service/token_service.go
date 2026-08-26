@@ -21,10 +21,16 @@ func NewTokenService(store storage.Store, sealer *seal.Manager) *TokenService {
 	}
 }
 
-func (s *TokenService) Create(name string) (string, auth.TokenRecord, error) {
+func (s *TokenService) Create(name string, namespace string) (string, auth.TokenRecord, error) {
 
 	if s.sealer.IsSealed() {
 		return "", auth.TokenRecord{}, errors.New("[OPERATION DENIED]: Vault is Sealed")
+	}
+
+	namespace = normalizeNamespace(namespace)
+
+	if !s.store.NamespaceExists(namespace) {
+		return "", auth.TokenRecord{}, errors.New("[OPERATION DENIED]: Namespace does not exist")
 	}
 
 	token, hash := auth.GenerateToken()
@@ -34,6 +40,7 @@ func (s *TokenService) Create(name string) (string, auth.TokenRecord, error) {
 		ID:        id,
 		Hash:      hash,
 		Name:      name,
+		Namespace: namespace,
 		CreatedAt: time.Now().Format(time.RFC3339),
 		Revoked:   false,
 	}

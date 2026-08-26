@@ -53,6 +53,7 @@ func Start() {
 			ID:        "root",
 			Hash:      hash,
 			Name:      "root",
+			Namespace: "*",
 			CreatedAt: time.Now().Format(time.RFC3339),
 			Revoked:   false,
 		}
