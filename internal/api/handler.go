@@ -9,6 +9,7 @@ import (
 	"rune/internal/seal"
 	"rune/internal/service"
 	"rune/internal/storage"
+	"strconv"
 )
 
 type Handler struct {
@@ -94,22 +95,49 @@ func (h *Handler) ListSecrets(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(keys)
 }
 func (h *Handler) DeleteSecret(w http.ResponseWriter, r *http.Request) {
-	key := r.URL.Query().Get("key")
-	namespaceName := namespace.Normalize(r.URL.Query().Get("namespace"))
-
-	if !middleware.AuthorizeNamespace(r, namespaceName) {
-		http.Error(w, "[AUTHORIZATION DENIED]: Token cannot access this namespace", http.StatusForbidden)
+	var req struct {
+		Key       string `json:"key"`
+		Namespace string `json:"namespace"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(
+			w,
+			"[INVALID REQUEST]: Invalid request body",
+			http.StatusBadRequest,
+		)
 		return
 	}
-
-	err := h.secretService.Delete(namespaceName, key)
-
+	namespace := namespace.Normalize(req.Namespace)
+	key := req.Key
+	if key == "" {
+		http.Error(
+			w,
+			"[INVALID REQUEST]: Secret key is required",
+			http.StatusBadRequest,
+		)
+		return
+	}
+	if !middleware.AuthorizeNamespace(r, namespace) {
+		http.Error(
+			w,
+			"[AUTHORIZATION DENIED]: Token cannot access this namespace",
+			http.StatusForbidden,
+		)
+		return
+	}
+	err := h.secretService.Delete(
+		namespace,
+		key,
+	)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusForbidden)
+		http.Error(
+			w,
+			err.Error(),
+			http.StatusNotFound,
+		)
 		return
 	}
-
-	w.WriteHeader(http.StatusNoContent)
+	w.WriteHeader(http.StatusOK)
 }
 func (h *Handler) RotateSecret(w http.ResponseWriter, r *http.Request) {
 	namespaceName := namespace.Normalize(r.URL.Query().Get("namespace"))
@@ -320,4 +348,49 @@ func (h *Handler) DeleteNamespace(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Write([]byte("namespace deleted"))
+}
+
+// VERSIONING
+
+func (h *Handler) GetSecretVersion(w http.ResponseWriter, r *http.Request) {
+	namespaceName := namespace.Normalize(r.URL.Query().Get("namespace"))
+	key := r.URL.Query().Get("key")
+	versionStr := r.URL.Query().Get("version")
+
+	version, err := strconv.Atoi(versionStr)
+	if err != nil || version < 1 {
+		http.Error(w, "Invalid Request", http.StatusBadRequest)
+		return
+	}
+
+	if !middleware.AuthorizeNamespace(r, namespaceName) {
+		http.Error(w, "[AUTHORIZATION DENIED]: Token cannot access this namespace", http.StatusForbidden)
+		return
+	}
+
+	value, err := h.secretService.GetVersion(namespaceName, key, version)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]string{
+		"value": value,
+	})
+}
+func (h *Handler) ListSecretVersions(w http.ResponseWriter, r *http.Request) {
+	namespaceName := namespace.Normalize(r.URL.Query().Get("namespace"))
+	key := r.URL.Query().Get("key")
+	if !middleware.AuthorizeNamespace(r, namespaceName) {
+		http.Error(w, "[AUTHORIZATION DENIED]: Token cannot access this namespace", http.StatusForbidden)
+		return
+	}
+
+	versions, err := h.secretService.ListVersions(namespaceName, key)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	json.NewEncoder(w).Encode(versions)
 }

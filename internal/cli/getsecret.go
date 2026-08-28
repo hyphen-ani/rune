@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var getVersion int
 var namespaceName string
 var getCmd = &cobra.Command{
 
@@ -22,17 +23,26 @@ var getCmd = &cobra.Command{
 		}
 		c := client.New("http://localhost:8080", token)
 		ns := normalizeNamespace(namespaceName)
-		val, err := c.Get(args[0], ns)
+
+		var val string
+
+		if getVersion > 0 {
+			val, err = c.GetVersion(args[0], ns, getVersion)
+		} else {
+			val, err = c.Get(args[0], ns)
+		}
 		if err != nil {
 			Error(err.Error())
 			return
 		}
+
 		fmt.Println("[SECRET]", val)
 		Success("Secret retrieved")
 	},
 }
 
 func init() {
-	getCmd.Flags().StringVarP(&namespaceName, "namespace", "n", "", "The vault namespace to use")
+	getCmd.Flags().IntVar(&getVersion, "version", 0, "Retrieve a specific secret version")
+	getCmd.Flags().StringVarP(&namespaceName, "namespace", "n", "default", "Namespace containing the secret")
 	rootCmd.AddCommand(getCmd)
 }

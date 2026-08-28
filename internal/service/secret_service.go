@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"log"
 	"rune/internal/auth"
 	"rune/internal/constants"
 	"rune/internal/crypto"
@@ -14,6 +15,13 @@ import (
 type SecretService struct {
 	store  storage.Store
 	sealer *seal.Manager
+}
+
+type SecretVersion struct {
+	Version   int    `json:"version"`
+	CreatedAt string `json:"created_at"`
+	UpdatedAt string `json:"updated_at"`
+	RotatedAt string `json:"rotated_at"`
 }
 
 func NewSecretService(store storage.Store, sealer *seal.Manager) *SecretService {
@@ -64,6 +72,13 @@ func (s *SecretService) Put(namespace, key, value string) error {
 		return err
 	}
 
+	log.Printf(
+
+		"PUT DEBUG -> namespace=%q key=%q fullKey=%q",
+		ns,
+		key,
+		fullKey,
+	)
 	now := time.Now().Format(time.RFC3339)
 
 	record := storage.SecretRecord{
@@ -73,6 +88,16 @@ func (s *SecretService) Put(namespace, key, value string) error {
 		UpdatedAt:  now,
 		RotatedAt:  "",
 		Version:    1,
+	}
+
+	versionKey := storage.VersionedSecretKey(fullKey, 1)
+
+	if err := s.store.Put(versionKey, record); err != nil {
+		return err
+	}
+
+	if err := s.store.Put(fullKey, record); err != nil {
+		return err
 	}
 
 	return s.store.Put(fullKey, record)
@@ -119,7 +144,29 @@ func (s *SecretService) Delete(namespace, key string) error {
 	}
 
 	fullKey := ns + "/" + key
-	return s.store.Delete(fullKey)
+
+	log.Printf(
+		"DELETE DEBUG -> namespace=%q key=%q fullKey=%q",
+		ns,
+		key,
+		fullKey,
+	)
+
+	current, err := s.store.Get(fullKey)
+	if err != nil {
+		return err
+	}
+
+	for version := 1; version <= current.Version; version++ {
+		versionKey := storage.VersionedSecretKey(fullKey, version)
+		_ = s.store.Delete(versionKey)
+	}
+
+	if err := s.store.Delete(fullKey); err != nil {
+		return err
+	}
+
+	return nil
 }
 func (s *SecretService) ListKeys(namespace string) ([]string, error) {
 	if s.sealer.IsSealed() {
@@ -141,6 +188,9 @@ func (s *SecretService) ListKeys(namespace string) ([]string, error) {
 
 	for _, key := range keys {
 		if strings.HasPrefix(key, ns+"/") {
+			if storage.IsVersionedSecretKey(key) {
+				continue
+			}
 			filtered = append(filtered, strings.TrimPrefix(key, ns+"/"))
 		}
 	}
@@ -178,14 +228,21 @@ func (s *SecretService) Rotate(namespace string, key string) (string, error) {
 	}
 
 	now := time.Now().Format(time.RFC3339)
-	version := existing.Version + 1
+	newVersion := existing.Version + 1
 	record := storage.SecretRecord{
 		Ciphertext: ciphertext,
 		Nonce:      nonce,
 		CreatedAt:  existing.CreatedAt,
 		UpdatedAt:  now,
 		RotatedAt:  now,
-		Version:    version,
+		Version:    newVersion,
+	}
+
+	versionKey := storage.VersionedSecretKey(fullKey, newVersion)
+
+	err = s.store.Put(versionKey, record)
+	if err != nil {
+		return "", err
 	}
 
 	err = s.store.Put(fullKey, record)
@@ -194,4 +251,78 @@ func (s *SecretService) Rotate(namespace string, key string) (string, error) {
 	}
 
 	return newValue, nil
+}
+func (s *SecretService) GetVersion(namespace, key string, version int) (string, error) {
+	if s.sealer.IsSealed() {
+		return "", errors.New("[OPERATION DENIED]: Vault is Sealed")
+	}
+
+	ns := normalizeNamespace(namespace)
+	if !s.store.NamespaceExists(ns) {
+		return "", errors.New("[OPERATION DENIED]: Namespace does not exist")
+	}
+
+	if version < 1 {
+		return "", errors.New("[INVALID REQUEST]: Version must be greater than zero")
+	}
+
+	fullKey := ns + "/" + key
+
+	versionKey := storage.VersionedSecretKey(fullKey, version)
+	record, err := s.store.Get(versionKey)
+	if err != nil {
+		return "", errors.New("[SECRET NOT FOUND]: Requested version does not exist")
+	}
+
+	k := s.sealer.GetKey()
+	plaintext, err := crypto.Decrypt(k, record.Ciphertext, record.Nonce)
+	if err != nil {
+		return "", err
+	}
+
+	return string(plaintext), nil
+}
+func (s *SecretService) ListVersions(namespaceName string, key string) ([]SecretVersion, error) {
+
+	if s.sealer.IsSealed() {
+		return nil, errors.New("[OPERATION DENIED]: Vault is Sealed")
+	}
+
+	ns := normalizeNamespace(namespaceName)
+	if !s.store.NamespaceExists(ns) {
+		return nil, errors.New("[OPERATION DENIED]: Namespace does not exist")
+	}
+
+	fullKey := ns + "/" + key
+	current, err := s.store.Get(fullKey)
+	if err != nil {
+		return nil, errors.New("[OPERATION DENIED]: Requested version does not exist")
+	}
+
+	var versions []SecretVersion
+	for version := 1; version <= current.Version; version++ {
+		versionKey := storage.VersionedSecretKey(fullKey, version)
+		record, err := s.store.Get(versionKey)
+		if err != nil {
+			continue
+		}
+
+		versions = append(versions, SecretVersion{
+			Version:   record.Version,
+			CreatedAt: record.CreatedAt,
+			UpdatedAt: record.UpdatedAt,
+			RotatedAt: record.RotatedAt,
+		})
+
+		log.Printf(
+			"VERSION DEBUG -> version=%d created=%q updated=%q rotated=%q",
+			record.Version,
+			record.CreatedAt,
+			record.UpdatedAt,
+			record.RotatedAt,
+		)
+	}
+
+	return versions, nil
+
 }

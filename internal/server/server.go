@@ -99,6 +99,8 @@ func Start() {
 	protected.HandleFunc("/namespace/create", handler.CreateNamespace)
 	protected.HandleFunc("/namespace/list", handler.ListNamespaces)
 	protected.HandleFunc("/namespace/delete", handler.DeleteNamespace)
+	protected.HandleFunc("/secret/version", handler.GetSecretVersion)
+	protected.HandleFunc("/secret/history", handler.ListSecretVersions)
 
 	// APPLY MIDDLEWARE
 	secured := middleware.AuthMiddleware(store)(protected)
