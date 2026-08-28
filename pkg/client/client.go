@@ -15,6 +15,13 @@ type Client struct {
 	Token   string
 }
 
+type SecretVersion struct {
+	Version   int    `json:"version"`
+	CreatedAt string `json:"created_at"`
+	UpdatedAt string `json:"updated_at"`
+	RotatedAt string `json:"rotated_at"`
+}
+
 func New(baseURL string, token string) *Client {
 	return &Client{
 		BaseURL: baseURL,
@@ -138,7 +145,7 @@ func (c *Client) List(namespace string) ([]string, error) {
 
 	return keys, nil
 }
-func (c *Client) Delete(key, namespace string) error {
+func (c *Client) Delete(key string, namespace string) error {
 	body := map[string]string{
 		"key":       key,
 		"namespace": namespace,
@@ -365,4 +372,68 @@ func (c *Client) DeleteNamespace(name string) error {
 	}
 
 	return nil
+}
+
+// VERSIONING
+func (c *Client) GetVersion(key string, namespace string, version int) (string, error) {
+
+	reqUrl := fmt.Sprintf("%s/secret/version?key=%s&namespace=%s&version=%d", c.BaseURL, url.QueryEscape(key),
+		url.QueryEscape(namespace), version)
+
+	req, err := http.NewRequest("GET", reqUrl, nil)
+	if err != nil {
+		return "", err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("%s", body)
+	}
+
+	var result map[string]string
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", err
+	}
+
+	return result["value"], nil
+}
+func (c *Client) ListVersions(key string, namespace string) ([]SecretVersion, error) {
+
+	reqURL := fmt.Sprintf("%s/secret/history?key=%s&namespace=%s", c.BaseURL,
+		url.QueryEscape(key), url.QueryEscape(namespace),
+	)
+
+	req, err := http.NewRequest("GET", reqURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("%s", body)
+	}
+
+	var versions []SecretVersion
+
+	if err := json.NewDecoder(resp.Body).Decode(&versions); err != nil {
+		return nil, err
+	}
+
+	return versions, nil
 }
