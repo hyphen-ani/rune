@@ -2,8 +2,8 @@
 
 set -e
 
-VERSION="v0.2.0"
-REPO="https://github.com/hyphen-ani/rune/releases/download"
+VERSION="v0.4.0"
+REPO="https://github.com/runelock-io/rune/releases/download"
 
 OS=$(uname | tr '[:upper:]' '[:lower:]')
 ARCH=$(uname -m)
