@@ -35,6 +35,15 @@ func AuthorizeNamespace(r *http.Request, namespace string) bool {
 
 }
 
+func GetTokenRecord(r *http.Request) *auth.TokenRecord {
+	value := r.Context().Value(TokenContextKey)
+	if value == nil {
+		return nil
+	}
+	token, _ := value.(*auth.TokenRecord)
+	return token
+}
+
 func IsRoot(r *http.Request) bool {
 
 	value := r.Context().Value(TokenContextKey)

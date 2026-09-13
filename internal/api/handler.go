@@ -200,6 +200,22 @@ func (h *Handler) Status(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// TOKEN ME
+
+func (h *Handler) GetCurrentToken(w http.ResponseWriter, r *http.Request) {
+	record := middleware.GetTokenRecord(r)
+	if record == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"id":         record.ID,
+		"name":       record.Name,
+		"namespace":  record.Namespace,
+		"created_at": record.CreatedAt,
+	})
+}
+
 // TOKEN HANDLERS
 
 func (h *Handler) CreateToken(w http.ResponseWriter, r *http.Request) {

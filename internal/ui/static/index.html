@@ -1,0 +1,1213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>rune vault</title>
+<style>
+/* ═══════════════════════════════════════════════
+   DESIGN TOKENS
+   ─ main area: light/dark switchable
+   ─ sidebar:   always zinc-950 (shadcn dark sidebar)
+═══════════════════════════════════════════════ */
+:root {
+  /* surface */
+  --bg:        hsl(0 0% 98%);
+  --surface:   hsl(0 0% 100%);
+  --surface2:  hsl(240 5% 96%);
+  --border:    hsl(240 6% 90%);
+  --text:      hsl(240 10% 4%);
+  --muted:     hsl(240 4% 46%);
+
+  /* intent */
+  --accent:      hsl(221 70% 54%);
+  --accent-fg:   hsl(0 0% 100%);
+  --accent-dim:  hsla(221,70%,54%,.08);
+  --ok:          hsl(142 71% 35%);
+  --ok-dim:      hsla(142,71%,35%,.09);
+  --danger:      hsl(0 72% 51%);
+  --danger-dim:  hsla(0,72%,51%,.09);
+  --warn:        hsl(38 92% 45%);
+  --warn-dim:    hsla(38,92%,45%,.09);
+
+  /* elevation */
+  --shadow:    0 1px 2px hsla(0,0%,0%,.06),0 1px 3px hsla(0,0%,0%,.1);
+  --shadow-md: 0 4px 6px hsla(0,0%,0%,.07),0 2px 4px hsla(0,0%,0%,.06);
+  --shadow-lg: 0 10px 20px hsla(0,0%,0%,.12),0 4px 8px hsla(0,0%,0%,.08);
+
+  /* sidebar — always dark, not affected by theme */
+  --sb-bg:          hsl(240 6% 7%);   /* zinc-950 */
+  --sb-border:      hsl(240 5% 14%);  /* zinc-800 */
+  --sb-text:        hsl(240 4% 56%);  /* zinc-400 */
+  --sb-text-hover:  hsl(0 0% 98%);    /* zinc-50  */
+  --sb-hover:       hsl(240 5% 14%);  /* zinc-800 */
+  --sb-active-bg:   hsl(240 5% 18%);  /* zinc-750 */
+  --sb-active-text: hsl(0 0% 98%);
+  --sb-accent:      hsl(213 60% 65%);
+  --sb-muted:       hsl(240 4% 38%);  /* zinc-500 */
+  --sb-w: 232px;
+
+  --radius: 0.5rem;
+  --font:   'Inter','Segoe UI',system-ui,sans-serif;
+  --mono:   'JetBrains Mono','Fira Code','Courier New',monospace;
+}
+
+[data-theme="dark"] {
+  --bg:       hsl(240 10% 4%);
+  --surface:  hsl(240 6% 10%);
+  --surface2: hsl(240 5% 14%);
+  --border:   hsl(240 5% 18%);
+  --text:     hsl(0 0% 95%);
+  --muted:    hsl(240 4% 46%);
+
+  --accent:     hsl(213 60% 65%);
+  --accent-dim: hsla(213,60%,65%,.12);
+  --ok:         hsl(142 60% 55%);
+  --ok-dim:     hsla(142,60%,55%,.12);
+  --danger:     hsl(0 72% 65%);
+  --danger-dim: hsla(0,72%,65%,.12);
+  --warn:       hsl(38 92% 60%);
+  --warn-dim:   hsla(38,92%,60%,.12);
+
+  --shadow:    none;
+  --shadow-md: none;
+  --shadow-lg: 0 4px 24px hsla(0,0%,0%,.4);
+
+  --sb-bg:       hsl(240 10% 3%);
+  --sb-border:   hsl(240 5% 11%);
+}
+
+/* ═══════════════════════════════════════════════
+   RESET
+═══════════════════════════════════════════════ */
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{
+  height:100%;background:var(--bg);color:var(--text);
+  font-family:var(--font);font-size:13px;line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+button,input,select,textarea{font-family:var(--font);font-size:13px;color:inherit}
+img{display:block}
+a{color:var(--accent);text-decoration:none}
+
+/* ═══════════════════════════════════════════════
+   LOGIN SHELL
+═══════════════════════════════════════════════ */
+#login-shell{
+  display:none;min-height:100vh;
+  align-items:center;justify-content:center;
+  background:var(--bg);
+}
+.lc{
+  width:100%;max-width:400px;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:12px;overflow:hidden;
+  box-shadow:var(--shadow-lg);
+}
+.lc-head{
+  padding:28px 28px 20px;text-align:center;
+  border-bottom:1px solid var(--border);
+}
+.lc-logo{
+  height:40px;margin:0 auto 12px;
+  object-fit:contain;max-width:140px;
+}
+.lc-title{font-size:17px;font-weight:700;letter-spacing:-.3px}
+.lc-sub  {color:var(--muted);font-size:12px;margin-top:3px}
+.lc-body {padding:22px 28px;display:flex;flex-direction:column;gap:18px}
+.lc-foot {
+  padding:12px 28px;border-top:1px solid var(--border);
+  background:var(--surface2);display:flex;align-items:center;gap:10px;
+}
+
+/* steps */
+.step{display:flex;flex-direction:column;gap:10px}
+.step-hdr{display:flex;align-items:center;gap:8px}
+.step-dot{
+  width:19px;height:19px;border-radius:50%;
+  border:1.5px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  font-size:9px;font-family:var(--mono);flex-shrink:0;
+  color:var(--muted);transition:all .2s;
+}
+.step-dot.active{border-color:var(--accent);color:var(--accent);background:var(--accent-dim)}
+.step-dot.done  {border-color:var(--ok);   color:var(--ok);   background:var(--ok-dim)}
+.step-lbl{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.07em}
+
+/* ═══════════════════════════════════════════════
+   FORM ELEMENTS
+═══════════════════════════════════════════════ */
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:11px;font-weight:500;color:var(--muted)}
+input[type=text],input[type=password],select,textarea{
+  width:100%;background:var(--surface2);
+  border:1px solid var(--border);color:var(--text);
+  padding:7px 11px;border-radius:6px;outline:none;
+  transition:border-color .15s,box-shadow .15s;
+}
+input:focus,select:focus,textarea:focus{
+  border-color:var(--accent);
+  box-shadow:0 0 0 3px var(--accent-dim);
+}
+input::placeholder,textarea::placeholder{color:var(--muted);opacity:.6}
+select option{background:var(--surface)}
+textarea{resize:vertical;min-height:64px;font-family:var(--mono);font-size:12px}
+
+/* ═══════════════════════════════════════════════
+   BUTTONS
+═══════════════════════════════════════════════ */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  padding:7px 14px;border-radius:6px;
+  border:1px solid var(--border);
+  background:var(--surface);color:var(--text);
+  cursor:pointer;font-size:12px;font-weight:500;white-space:nowrap;
+  transition:background .12s,border-color .12s,color .12s;
+  box-shadow:var(--shadow);
+}
+.btn:hover{background:var(--surface2)}
+.btn-primary{
+  background:var(--accent);border-color:var(--accent);
+  color:var(--accent-fg);box-shadow:none;
+}
+.btn-primary:hover{opacity:.9}
+.btn-ghost{background:transparent;border-color:transparent;box-shadow:none}
+.btn-ghost:hover{background:var(--surface2);border-color:var(--border)}
+.btn-danger{border-color:var(--danger);color:var(--danger);background:transparent;box-shadow:none}
+.btn-danger:hover{background:var(--danger-dim)}
+.btn-ok   {border-color:var(--ok);   color:var(--ok);   background:transparent;box-shadow:none}
+.btn-ok:hover{background:var(--ok-dim)}
+.btn-warn {border-color:var(--warn); color:var(--warn); background:transparent;box-shadow:none}
+.btn-warn:hover{background:var(--warn-dim)}
+.btn-sm{padding:4px 10px;font-size:11px;border-radius:5px}
+.btn-full{width:100%}
+.btn:disabled{opacity:.38;cursor:not-allowed}
+
+/* ═══════════════════════════════════════════════
+   APP SHELL  (sidebar + main)
+═══════════════════════════════════════════════ */
+#app-shell{display:none;height:100vh;overflow:hidden}
+.app-layout{display:flex;height:100vh}
+
+/* ─── SIDEBAR ────────────────────────────────── */
+#sidebar{
+  width:var(--sb-w);flex-shrink:0;
+  background:var(--sb-bg);
+  border-right:1px solid var(--sb-border);
+  display:flex;flex-direction:column;
+  height:100vh;overflow-y:auto;
+  font-size:13px;
+}
+
+/* logo row */
+.sb-logo{
+  display:flex;align-items:center;gap:9px;
+  padding:16px 14px 14px;
+  border-bottom:1px solid var(--sb-border);
+  margin-bottom:4px;
+}
+.sb-logo img{height:24px;object-fit:contain;max-width:90px}
+.sb-logo-text{font-size:14px;font-weight:700;color:hsl(0 0% 95%);letter-spacing:.3px}
+
+/* nav items */
+.sb-nav{padding:6px 8px;flex:1}
+.sb-item{
+  display:flex;align-items:center;gap:9px;
+  width:100%;padding:8px 10px;
+  border-radius:6px;border:none;
+  background:transparent;color:var(--sb-text);
+  cursor:pointer;font-size:12.5px;font-weight:450;
+  text-align:left;
+  transition:background .1s,color .1s;
+  margin-bottom:2px;
+}
+.sb-item:hover{background:var(--sb-hover);color:var(--sb-text-hover)}
+.sb-item.active{
+  background:var(--sb-active-bg);
+  color:var(--sb-active-text);
+  font-weight:500;
+}
+.sb-item svg{
+  width:15px;height:15px;flex-shrink:0;
+  color:var(--sb-muted);transition:color .1s;
+}
+.sb-item:hover svg{color:var(--sb-text-hover)}
+.sb-item.active svg{color:var(--sb-accent)}
+
+/* separator */
+.sb-sep{border:none;border-top:1px solid var(--sb-border);margin:6px 8px}
+
+/* ── sidebar footer (user + actions) ─────────── */
+.sb-footer{padding:8px}
+
+/* shadcn nav-user style */
+.sb-user{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 10px;border-radius:6px;
+  margin-bottom:2px;
+  border:1px solid transparent;
+}
+.sb-avatar{
+  width:30px;height:30px;border-radius:50%;flex-shrink:0;
+  background:var(--sb-active-bg);
+  border:1px solid var(--sb-border);
+  color:hsl(0 0% 85%);
+  font-size:11px;font-weight:600;
+  display:flex;align-items:center;justify-content:center;
+  letter-spacing:0;
+}
+.sb-uinfo{min-width:0}
+.sb-uname{
+  font-size:12px;font-weight:600;
+  color:hsl(0 0% 92%);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.sb-uns{
+  font-size:10px;color:var(--sb-muted);
+  font-family:var(--mono);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  margin-top:1px;
+}
+
+/* sidebar ghost action buttons */
+.sb-actions{display:flex;flex-direction:column;gap:1px}
+.sb-act{
+  display:flex;align-items:center;gap:9px;
+  width:100%;padding:7px 10px;border-radius:6px;
+  background:transparent;border:none;
+  color:var(--sb-text);cursor:pointer;
+  font-size:12px;font-weight:450;text-align:left;
+  transition:background .1s,color .1s;
+}
+.sb-act:hover{background:var(--sb-hover);color:var(--sb-text-hover)}
+.sb-act svg{width:13px;height:13px;flex-shrink:0;color:var(--sb-muted)}
+.sb-act:hover svg{color:var(--sb-text-hover)}
+.sb-act-warn:hover{color:hsl(38 92% 60%)}
+.sb-act-warn:hover svg{color:hsl(38 92% 60%)}
+.sb-act-danger:hover{color:hsl(0 72% 65%)}
+.sb-act-danger:hover svg{color:hsl(0 72% 65%)}
+
+/* theme row inside sidebar */
+.sb-theme{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:6px 10px 8px;
+}
+.sb-theme-lbl{font-size:11px;color:var(--sb-muted)}
+.sb-theme-btn{
+  display:flex;align-items:center;gap:5px;
+  padding:3px 8px;border-radius:4px;
+  background:var(--sb-hover);border:1px solid var(--sb-border);
+  color:var(--sb-text);cursor:pointer;font-size:10.5px;
+  transition:background .1s,color .1s;
+}
+.sb-theme-btn:hover{background:var(--sb-active-bg);color:hsl(0 0% 90%)}
+.sb-theme-btn svg{width:11px;height:11px}
+
+/* ─── TOPBAR ─────────────────────────────────── */
+#app-main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+#topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 24px;height:48px;flex-shrink:0;
+  background:var(--surface);border-bottom:1px solid var(--border);
+}
+.tb-title{font-size:13px;font-weight:600;color:var(--text)}
+.tb-right{display:flex;align-items:center;gap:8px}
+#seal-pill{
+  font-size:10px;font-weight:600;padding:2px 9px;
+  border-radius:9999px;border:1.5px solid;letter-spacing:.04em;
+}
+#seal-pill.sealed  {color:var(--danger);border-color:var(--danger);background:var(--danger-dim)}
+#seal-pill.unsealed{color:var(--ok);   border-color:var(--ok);   background:var(--ok-dim)}
+
+/* ─── VIEW ───────────────────────────────────── */
+#view{flex:1;overflow-y:auto;padding:24px 28px}
+
+/* ═══════════════════════════════════════════════
+   CARDS
+═══════════════════════════════════════════════ */
+.card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);margin-bottom:16px;
+  box-shadow:var(--shadow);overflow:hidden;
+}
+.card-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 18px 0;
+}
+.card-title{
+  font-size:11.5px;font-weight:600;
+  letter-spacing:.03em;color:var(--muted);
+  text-transform:uppercase;
+}
+.card-body{padding:14px 18px 18px}
+/* when table is the only content, no inner padding */
+.card-table .card-body{padding:0}
+
+/* ═══════════════════════════════════════════════
+   DASHBOARD
+═══════════════════════════════════════════════ */
+.pg-title{font-size:18px;font-weight:700;letter-spacing:-.4px;margin-bottom:4px}
+.pg-sub  {color:var(--muted);font-size:12px;margin-bottom:20px}
+
+.stats-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(148px,1fr));
+  gap:12px;margin-bottom:18px;
+}
+.stat-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:16px 18px;
+  box-shadow:var(--shadow);
+}
+.stat-icon{
+  width:30px;height:30px;border-radius:7px;
+  display:flex;align-items:center;justify-content:center;margin-bottom:10px;
+}
+.stat-icon svg{width:15px;height:15px}
+.si-accent{background:var(--accent-dim);color:var(--accent)}
+.si-ok    {background:var(--ok-dim);    color:var(--ok)}
+.si-warn  {background:var(--warn-dim);  color:var(--warn)}
+.si-muted {background:var(--surface2);  color:var(--muted)}
+.stat-val{font-size:24px;font-weight:700;font-family:var(--mono);line-height:1}
+.stat-lbl{font-size:10.5px;color:var(--muted);margin-top:4px;letter-spacing:.04em;text-transform:uppercase}
+
+.vault-banner{
+  display:flex;align-items:center;gap:14px;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:16px 20px;
+  margin-bottom:18px;box-shadow:var(--shadow);
+}
+.vault-dot{
+  width:10px;height:10px;border-radius:50%;flex-shrink:0;
+}
+.vault-dot.sealed  {background:var(--danger);box-shadow:0 0 0 3px var(--danger-dim)}
+.vault-dot.unsealed{background:var(--ok);   box-shadow:0 0 0 3px var(--ok-dim)}
+.vault-lbl{font-size:13px;font-weight:600}
+.vault-sub{font-size:11.5px;color:var(--muted);margin-top:2px}
+
+/* ═══════════════════════════════════════════════
+   TABLES
+═══════════════════════════════════════════════ */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+thead tr{border-bottom:1px solid var(--border);background:var(--surface2)}
+th{
+  font-size:10px;font-weight:600;text-transform:uppercase;
+  letter-spacing:.07em;color:var(--muted);
+  padding:9px 16px;text-align:left;
+}
+td{padding:10px 16px;border-bottom:1px solid var(--border);vertical-align:middle}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:var(--surface2)}
+.mono{font-family:var(--mono);font-size:11.5px}
+
+/* ═══════════════════════════════════════════════
+   ACTIONS / BADGES
+═══════════════════════════════════════════════ */
+.actions{display:flex;gap:4px;flex-wrap:wrap}
+
+.badge{
+  display:inline-flex;align-items:center;
+  padding:2px 8px;border-radius:9999px;
+  font-size:10px;font-weight:600;border:1.5px solid;
+}
+.badge-ok    {color:var(--ok);   border-color:var(--ok);   background:var(--ok-dim)}
+.badge-danger{color:var(--danger);border-color:var(--danger);background:var(--danger-dim)}
+.badge-muted {color:var(--muted);border-color:var(--border);background:var(--surface2)}
+
+/* ═══════════════════════════════════════════════
+   FORM ROWS
+═══════════════════════════════════════════════ */
+.form-row{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}
+.f-sm {flex:0 0 120px}
+.f-md {flex:0 0 180px}
+.f-lg {flex:1;min-width:140px}
+.f-end{display:flex;align-items:flex-end}
+
+/* ═══════════════════════════════════════════════
+   MODAL
+═══════════════════════════════════════════════ */
+#modal-overlay{
+  display:none;position:fixed;inset:0;
+  background:hsla(0,0%,0%,.45);backdrop-filter:blur(3px);
+  z-index:200;align-items:center;justify-content:center;
+}
+#modal-overlay.open{display:flex}
+#modal-box{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:10px;padding:22px 24px;
+  min-width:380px;max-width:520px;width:90%;
+  max-height:80vh;overflow-y:auto;
+  box-shadow:var(--shadow-lg);
+}
+.modal-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.modal-title{font-size:14px;font-weight:600}
+.modal-close{
+  background:transparent;border:none;color:var(--muted);
+  cursor:pointer;font-size:16px;line-height:1;
+  padding:3px 5px;border-radius:4px;
+}
+.modal-close:hover{background:var(--surface2);color:var(--text)}
+
+/* ═══════════════════════════════════════════════
+   COPY BOX
+═══════════════════════════════════════════════ */
+.copy-box{
+  display:flex;align-items:center;gap:10px;
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:6px;padding:9px 12px;margin:8px 0;
+}
+.copy-box code{flex:1;word-break:break-all;font-family:var(--mono);font-size:12px;color:var(--ok)}
+
+/* ═══════════════════════════════════════════════
+   TOAST
+═══════════════════════════════════════════════ */
+#toast{
+  position:fixed;bottom:20px;right:20px;z-index:300;
+  padding:9px 16px;border-radius:8px;font-size:12px;font-weight:500;
+  border:1px solid;background:var(--surface);
+  opacity:0;transition:opacity .18s;pointer-events:none;
+  box-shadow:var(--shadow-lg);max-width:300px;
+}
+#toast.ok    {color:var(--ok);   border-color:var(--ok)}
+#toast.danger{color:var(--danger);border-color:var(--danger)}
+#toast.warn  {color:var(--warn); border-color:var(--warn)}
+
+/* ═══════════════════════════════════════════════
+   UTILS
+═══════════════════════════════════════════════ */
+.empty  {color:var(--muted);font-size:12px;text-align:center;padding:28px 0}
+.spinner{color:var(--muted);font-size:12px;padding:18px 0;text-align:center}
+.note   {color:var(--muted);font-size:10.5px;margin-top:5px}
+.warn-text{color:var(--warn);font-size:11px;margin-bottom:8px}
+.err-text{font-size:11px;color:var(--danger);margin-top:4px;display:none}
+hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
+</style>
+</head>
+<body>
+
+<!-- ══ LOGIN SHELL ══════════════════════════════ -->
+<div id="login-shell">
+<div class="lc">
+  <div class="lc-head">
+    <img src="logo.png" class="lc-logo" alt="rune" onerror="this.style.display='none'">
+    <div class="lc-sub">local-first secrets manager</div>
+  </div>
+  <div class="lc-body">
+    <!-- step 1 -->
+    <div class="step" id="step-token">
+      <div class="step-hdr">
+        <div class="step-dot active" id="dot-1">1</div>
+        <span class="step-lbl">Authenticate</span>
+      </div>
+      <div class="field">
+        <label>Token</label>
+        <input type="password" id="inp-token" placeholder="Paste your token" autocomplete="off">
+      </div>
+      <p class="err-text" id="err-auth"></p>
+      <button class="btn btn-primary btn-full" id="btn-auth" onclick="doAuthenticate()">Continue →</button>
+    </div>
+    <!-- step 2 -->
+    <div class="step" id="step-unseal" style="display:none">
+      <div class="step-hdr">
+        <div class="step-dot active" id="dot-2">2</div>
+        <span class="step-lbl">Unseal Vault</span>
+      </div>
+      <div class="field">
+        <label>Passphrase</label>
+        <input type="password" id="inp-pass" placeholder="Vault passphrase" autocomplete="off">
+      </div>
+      <p class="err-text" id="err-unseal"></p>
+      <button class="btn btn-primary btn-full" id="btn-unseal" onclick="doUnseal()">Unseal →</button>
+    </div>
+  </div>
+  <div class="lc-foot">
+    <span class="badge badge-danger" id="lc-seal-badge">Sealed</span>
+    <span id="lc-status" style="color:var(--muted);font-size:11px">Enter token to continue</span>
+  </div>
+</div>
+</div>
+
+<!-- ══ APP SHELL ════════════════════════════════ -->
+<div id="app-shell">
+<div class="app-layout">
+
+  <!-- ─── SIDEBAR ─────────────────────────────── -->
+  <aside id="sidebar">
+
+    <!-- logo -->
+    <div class="sb-logo">
+      <img src="logo.png" alt="rune" onerror="this.style.display='none'">
+    </div>
+
+    <!-- nav -->
+    <nav class="sb-nav">
+      <button class="sb-item" id="nav-dashboard"  onclick="navigate('dashboard')">
+        <svg viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1.5" fill="currentColor"/><rect x="9" y="1" width="6" height="6" rx="1.5" fill="currentColor" opacity=".5"/><rect x="1" y="9" width="6" height="6" rx="1.5" fill="currentColor" opacity=".5"/><rect x="9" y="9" width="6" height="6" rx="1.5" fill="currentColor"/></svg>
+        Dashboard
+      </button>
+      <button class="sb-item" id="nav-secrets" onclick="navigate('secrets')">
+        <svg viewBox="0 0 16 16" fill="none"><circle cx="6.5" cy="6.5" r="4" stroke="currentColor" stroke-width="1.5"/><path d="M10 10l4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        Secrets
+      </button>
+      <button class="sb-item" id="nav-namespaces" onclick="navigate('namespaces')">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M1.5 5a1 1 0 011-1h3l1.5 2H14a1 1 0 011 1v5a1 1 0 01-1 1H2.5a1 1 0 01-1-1V5z" stroke="currentColor" stroke-width="1.5"/></svg>
+        Namespaces
+      </button>
+      <button class="sb-item" id="nav-tokens" onclick="navigate('tokens')">
+        <svg viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="12" height="9" rx="2" stroke="currentColor" stroke-width="1.5"/><circle cx="6" cy="8.5" r="1.5" fill="currentColor"/><path d="M9 7.5h3M9 9.5h2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        Tokens
+      </button>
+    </nav>
+
+    <div style="flex:1"></div>
+
+    <!-- footer -->
+    <div class="sb-footer">
+
+      <!-- user -->
+      <div class="sb-user">
+        <div class="sb-avatar" id="sb-avatar">—</div>
+        <div class="sb-uinfo">
+          <div class="sb-uname" id="sb-uname">—</div>
+          <div class="sb-uns"   id="sb-uns">—</div>
+        </div>
+      </div>
+
+      <hr class="sb-sep">
+
+      <!-- theme -->
+      <div class="sb-theme">
+        <span class="sb-theme-lbl">Theme</span>
+        <button class="sb-theme-btn" onclick="toggleTheme()">
+          <svg id="theme-icon" viewBox="0 0 12 12" fill="none">
+            <circle cx="6" cy="6" r="2.5" stroke="currentColor" stroke-width="1.3"/>
+            <path d="M6 1v1M6 10v1M1 6h1M10 6h1M2.5 2.5l.7.7M8.8 8.8l.7.7M8.8 3.2l.7-.7M2.5 9.5l.7-.7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+          </svg>
+          <span id="theme-label">Light</span>
+        </button>
+      </div>
+
+      <div class="sb-actions">
+        <button class="sb-act sb-act-warn" onclick="doSeal()">
+          <svg viewBox="0 0 14 14" fill="none"><rect x="2" y="6.5" width="10" height="6.5" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M4.5 6.5V4.5a2.5 2.5 0 015 0v2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+          Seal Vault
+        </button>
+        <button class="sb-act sb-act-danger" onclick="doLogout()">
+          <svg viewBox="0 0 14 14" fill="none"><path d="M5 2H3a1 1 0 00-1 1v8a1 1 0 001 1h2M10 10l3-3-3-3M13 7H6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Logout
+        </button>
+      </div>
+
+    </div>
+  </aside><!-- #sidebar -->
+
+  <!-- ─── MAIN ──────────────────────────────── -->
+  <div id="app-main">
+    <header id="topbar">
+      <span class="tb-title" id="page-title">Dashboard</span>
+      <div class="tb-right">
+        <span id="seal-pill" class="sealed">Sealed</span>
+      </div>
+    </header>
+    <main id="view"></main>
+  </div>
+
+</div><!-- .app-layout -->
+</div><!-- #app-shell -->
+
+<!-- ══ MODAL ════════════════════════════════════ -->
+<div id="modal-overlay">
+  <div id="modal-box">
+    <div class="modal-hdr">
+      <div class="modal-title" id="modal-title"></div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<!-- ══ TOAST ════════════════════════════════════ -->
+<div id="toast"></div>
+
+<script>
+/* ─── theme: run immediately to avoid flash ── */
+;(()=>{
+  const t=localStorage.getItem('rune_theme')||'light';
+  if(t==='dark') document.documentElement.setAttribute('data-theme','dark');
+})();
+
+/* ─── state ────────────────────────────────── */
+const S={
+  token:    localStorage.getItem('rune_token')||'',
+  sealed:   true,
+  authed:   false,
+  tokenInfo:null,
+  namespace:'default',
+  view:     'dashboard',
+};
+
+/* ─── theme ─────────────────────────────────── */
+function applyThemeUI(){
+  const dark=document.documentElement.getAttribute('data-theme')==='dark';
+  const lbl=document.getElementById('theme-label');
+  const ico=document.getElementById('theme-icon');
+  if(lbl) lbl.textContent=dark?'Dark':'Light';
+  if(ico) ico.innerHTML=dark
+    ?'<path d="M10.5 7A4.5 4.5 0 016 2.5a5.5 5.5 0 100 9A4.5 4.5 0 0110.5 7z" fill="currentColor" opacity=".9"/>'
+    :'<circle cx="6" cy="6" r="2.5" stroke="currentColor" stroke-width="1.3"/><path d="M6 1v1M6 10v1M1 6h1M10 6h1M2.5 2.5l.7.7M8.8 8.8l.7.7M8.8 3.2l.7-.7M2.5 9.5l.7-.7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>';
+}
+function toggleTheme(){
+  const dark=document.documentElement.getAttribute('data-theme')==='dark';
+  dark
+    ? document.documentElement.removeAttribute('data-theme')
+    : document.documentElement.setAttribute('data-theme','dark');
+  localStorage.setItem('rune_theme', dark?'light':'dark');
+  applyThemeUI();
+}
+applyThemeUI();
+
+/* ─── api ────────────────────────────────────── */
+const api={
+  h(){ return{'Content-Type':'application/json','Authorization':`Bearer ${S.token}`}; },
+  get(p){ return fetch(p,{headers:this.h()}); },
+  post(p,b){ return fetch(p,{method:'POST',headers:this.h(),body:b!=null?JSON.stringify(b):undefined}); },
+  status(){ return fetch('/status'); },
+  unseal(p){ return fetch('/unseal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({passphrase:p})}); },
+};
+
+/* ─── helpers ───────────────────────────────── */
+function esc(s){ return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function enc(s){ return encodeURIComponent(s); }
+function q(s)  { return JSON.stringify(s); }
+function fmt(s){ return s?s.slice(0,16).replace('T',' '):'—'; }
+function errHTML(m){ return `<p style="color:var(--danger);font-size:12px;padding:8px 0">${esc(m)}</p>`; }
+
+function toast(msg,type='ok'){
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.className=type; el.style.opacity=1;
+  clearTimeout(el._t);
+  el._t=setTimeout(()=>{ el.style.opacity=0; },3000);
+}
+function showModal(title,html){
+  document.getElementById('modal-title').textContent=title;
+  document.getElementById('modal-body').innerHTML=html;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+function closeModal(){ document.getElementById('modal-overlay').classList.remove('open'); }
+function copyText(t){
+  navigator.clipboard.writeText(t).then(()=>toast('Copied')).catch(()=>{
+    const ta=document.createElement('textarea'); ta.value=t;
+    ta.style.cssText='position:fixed;opacity:0'; document.body.appendChild(ta);
+    ta.select(); document.execCommand('copy'); document.body.removeChild(ta); toast('Copied');
+  });
+}
+function copyBox(val){
+  return `<div class="copy-box"><code>${esc(val)}</code><button class="btn btn-sm" onclick="copyText(${q(val)})">Copy</button></div>`;
+}
+
+/* ─── seal status ──────────────────────────── */
+async function refreshSeal(){
+  try{ const r=await api.status(); S.sealed=(await r.text()).trim()==='sealed'; }catch(_){ S.sealed=true; }
+  const pill =document.getElementById('seal-pill');
+  const badge=document.getElementById('lc-seal-badge');
+  if(pill){  pill.textContent =S.sealed?'Sealed':'Unsealed'; pill.className =S.sealed?'sealed':'unsealed'; }
+  if(badge){ badge.textContent=S.sealed?'Sealed':'Unsealed'; badge.className=S.sealed?'badge badge-danger':'badge badge-ok'; }
+}
+setInterval(async()=>{
+  await refreshSeal();
+  if(S.authed&&S.sealed){ S.authed=false; showLogin(); }
+},7000);
+
+/* ─── shells ─────────────────────────────────── */
+function showLogin(){
+  document.getElementById('app-shell').style.display='none';
+  document.getElementById('login-shell').style.display='flex';
+  resetLoginUI();
+}
+function showApp(){
+  document.getElementById('login-shell').style.display='none';
+  document.getElementById('app-shell').style.display='block';
+}
+function resetLoginUI(){
+  const d1=document.getElementById('dot-1'),d2=document.getElementById('dot-2');
+  const s2=document.getElementById('step-unseal');
+  const ls=document.getElementById('lc-status');
+  document.getElementById('err-auth').style.display='none';
+  document.getElementById('err-unseal').style.display='none';
+  if(S.token){
+    document.getElementById('inp-token').value=S.token;
+    if(d1){d1.className='step-dot done';d1.textContent='✓';}
+    if(d2) d2.className='step-dot active';
+    if(s2) s2.style.display='flex';
+    if(ls) ls.textContent='Token saved — unseal to continue';
+  } else {
+    if(d1){d1.className='step-dot active';d1.textContent='1';}
+    if(s2) s2.style.display='none';
+    if(ls) ls.textContent='Enter token to continue';
+  }
+}
+function setErr(id,msg){ const e=document.getElementById(id); e.textContent=msg; e.style.display='block'; }
+
+/* ─── token info ─────────────────────────────── */
+async function fetchTokenInfo(){
+  try{
+    const r=await api.get('/token/me');
+    if(!r.ok) return;
+    S.tokenInfo=await r.json();
+    const name=S.tokenInfo.name||'—';
+    const ns  =S.tokenInfo.namespace==='*'?'all namespaces':S.tokenInfo.namespace;
+    const av  =document.getElementById('sb-avatar');
+    const un  =document.getElementById('sb-uname');
+    const uns =document.getElementById('sb-uns');
+    if(av)  av.textContent=(name[0]||'?').toUpperCase();
+    if(un)  un.textContent=name;
+    if(uns) uns.textContent=ns;
+    if(S.tokenInfo.namespace!=='*') S.namespace=S.tokenInfo.namespace;
+  } catch(_){}
+}
+
+async function getNamespaces(){
+  if(!S.tokenInfo) return [S.namespace];
+  if(S.tokenInfo.namespace==='*'){
+    try{ const r=await api.get('/namespace/list'); if(r.ok) return await r.json(); } catch(_){}
+    return ['default'];
+  }
+  return [S.tokenInfo.namespace];
+}
+
+/* ─── login flow ─────────────────────────────── */
+async function doAuthenticate(){
+  const raw=(document.getElementById('inp-token').value||'').trim();
+  if(!raw){ setErr('err-auth','Token is required'); return; }
+  const btn=document.getElementById('btn-auth');
+  btn.disabled=true; btn.textContent='Checking…';
+  const prev=S.token; S.token=raw;
+  try{
+    const r=await api.get('/secret/list?namespace=default');
+    if(r.status===401){
+      S.token=prev; btn.disabled=false; btn.textContent='Continue →';
+      setErr('err-auth','Invalid token'); return;
+    }
+  } catch(_){
+    S.token=prev; btn.disabled=false; btn.textContent='Continue →';
+    setErr('err-auth','Could not reach server'); return;
+  }
+  localStorage.setItem('rune_token',raw);
+  btn.disabled=false; btn.textContent='Continue →';
+  const d1=document.getElementById('dot-1');
+  if(d1){d1.className='step-dot done';d1.textContent='✓';}
+  await refreshSeal();
+  if(!S.sealed){ enterApp(); return; }
+  document.getElementById('step-unseal').style.display='flex';
+  const d2=document.getElementById('dot-2');
+  if(d2) d2.className='step-dot active';
+  document.getElementById('lc-status').textContent='Token verified — unseal vault to continue';
+  document.getElementById('inp-pass').focus();
+}
+async function doUnseal(){
+  const pass=document.getElementById('inp-pass').value;
+  if(!pass){ setErr('err-unseal','Passphrase is required'); return; }
+  const btn=document.getElementById('btn-unseal');
+  btn.disabled=true; btn.textContent='Unsealing…';
+  try{
+    const r=await api.unseal(pass); const txt=await r.text();
+    if(!r.ok){ btn.disabled=false; btn.textContent='Unseal →'; setErr('err-unseal',txt||'Unseal failed'); return; }
+  } catch(_){ btn.disabled=false; btn.textContent='Unseal →'; setErr('err-unseal','Could not reach server'); return; }
+  btn.disabled=false; btn.textContent='Unseal →';
+  await refreshSeal(); enterApp();
+}
+async function enterApp(){
+  S.authed=true; showApp();
+  await fetchTokenInfo();
+  navigate('dashboard');
+}
+async function doSeal(){
+  try{
+    const r=await api.post('/seal',null);
+    if(r.ok){ S.authed=false; await refreshSeal(); showLogin(); toast('Vault sealed','warn'); }
+    else     { toast(await r.text()||'Seal failed','danger'); }
+  } catch(_){ toast('Request failed','danger'); }
+}
+function doLogout(){
+  S.token=''; S.authed=false; S.tokenInfo=null;
+  localStorage.removeItem('rune_token');
+  showLogin(); toast('Logged out','warn');
+}
+
+/* ─── router ─────────────────────────────────── */
+const PAGE_TITLES={dashboard:'Dashboard',secrets:'Secrets',namespaces:'Namespaces',tokens:'Tokens'};
+function navigate(view){
+  if(!S.authed) return;
+  S.view=view;
+  ['dashboard','secrets','namespaces','tokens'].forEach(v=>{
+    const b=document.getElementById('nav-'+v);
+    if(b) b.classList.toggle('active',v===view);
+  });
+  const pt=document.getElementById('page-title');
+  if(pt) pt.textContent=PAGE_TITLES[view]||view;
+  document.getElementById('view').innerHTML='<p class="spinner">Loading…</p>';
+  ({dashboard:renderDash,secrets:renderSecrets,namespaces:renderNs,tokens:renderTokens}[view]||renderDash)();
+}
+
+/* ─── boot ───────────────────────────────────── */
+(async()=>{
+  await refreshSeal(); applyThemeUI();
+  if(S.token&&!S.sealed){
+    try{
+      const r=await api.get('/secret/list?namespace=default');
+      if(r.status!==401){ S.authed=true; showApp(); await fetchTokenInfo(); navigate('dashboard'); return; }
+    } catch(_){}
+  }
+  showLogin();
+})();
+
+document.getElementById('modal-overlay').addEventListener('click',e=>{
+  if(e.target===document.getElementById('modal-overlay')) closeModal();
+});
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeModal(); });
+
+/* ═══════════════════════════════════════════════
+   DASHBOARD
+═══════════════════════════════════════════════ */
+async function renderDash(){
+  const isRoot=S.tokenInfo?.namespace==='*';
+  const ns=S.namespace;
+  const [sRes,nRes,tRes]=await Promise.all([
+    api.get(`/secret/list?namespace=${enc(ns)}`).catch(()=>null),
+    isRoot?api.get('/namespace/list').catch(()=>null):null,
+    isRoot?api.get('/token/list').catch(()=>null):null,
+  ]);
+  let sc='—',nc='—',tc='—';
+  try{ if(sRes?.ok){ const d=await sRes.json(); sc=(d||[]).length; } }catch(_){}
+  try{ if(nRes?.ok){ const d=await nRes.json(); nc=(d||[]).length; } }catch(_){}
+  try{ if(tRes?.ok){ const d=await tRes.json(); tc=(d||[]).length; } }catch(_){}
+
+  const sdClass=S.sealed?'sealed':'unsealed';
+  const sdLabel=S.sealed?'Sealed':'Unsealed';
+  const sdSub  =S.sealed?'Vault is locked. Secrets are inaccessible.':'Vault is open and operational.';
+  const nsDisp =S.tokenInfo?.namespace==='*'?'root':S.tokenInfo?.namespace||'—';
+  const v=document.getElementById('view');
+  v.innerHTML=`
+  <div class="pg-title">Dashboard</div>
+  <div class="pg-sub">Signed in as <strong>${esc(S.tokenInfo?.name||'—')}</strong> · ${esc(nsDisp)} namespace</div>
+
+  <div class="vault-banner">
+    <div class="vault-dot ${sdClass}"></div>
+    <div>
+      <div class="vault-lbl">${sdLabel}</div>
+      <div class="vault-sub">${sdSub}</div>
+    </div>
+    ${!S.sealed?`<div style="margin-left:auto"><button class="btn btn-warn btn-sm" onclick="doSeal()">Seal Vault</button></div>`:''}
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-icon si-accent">
+        <svg viewBox="0 0 16 16" fill="none"><circle cx="6.5" cy="6.5" r="4" stroke="currentColor" stroke-width="1.5"/><path d="M10 10l4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </div>
+      <div class="stat-val">${sc}</div>
+      <div class="stat-lbl">Secrets · <em style="text-transform:none">${esc(ns)}</em></div>
+    </div>
+    ${isRoot?`
+    <div class="stat-card">
+      <div class="stat-icon si-ok">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M1.5 5a1 1 0 011-1h3l1.5 2H14a1 1 0 011 1v5a1 1 0 01-1 1H2.5a1 1 0 01-1-1V5z" stroke="currentColor" stroke-width="1.5"/></svg>
+      </div>
+      <div class="stat-val">${nc}</div>
+      <div class="stat-lbl">Namespaces</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon si-warn">
+        <svg viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="12" height="9" rx="2" stroke="currentColor" stroke-width="1.5"/><circle cx="6" cy="8.5" r="1.5" fill="currentColor"/><path d="M9 7.5h3M9 9.5h2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </div>
+      <div class="stat-val">${tc}</div>
+      <div class="stat-lbl">Tokens</div>
+    </div>`:''}
+    <div class="stat-card">
+      <div class="stat-icon si-muted">
+        <svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M8 5v4M8 10.5v.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </div>
+      <div class="stat-val" style="font-size:14px;margin-top:4px">${esc(nsDisp)}</div>
+      <div class="stat-lbl">Your Namespace</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">Quick Put</div></div>
+    <div class="card-body">
+      <div class="form-row">
+        <div class="field f-md"><label>Key</label><input type="text" id="q-key" placeholder="SECRET_NAME" ${S.sealed?'disabled':''}></div>
+        <div class="field f-lg"><label>Value</label><input type="text" id="q-val" placeholder="value" ${S.sealed?'disabled':''}></div>
+        <div class="f-end"><button class="btn btn-primary" onclick="doQuickPut()" ${S.sealed?'disabled':''}>Put</button></div>
+      </div>
+    </div>
+  </div>`;
+}
+async function doQuickPut(){
+  const key=(document.getElementById('q-key').value||'').trim();
+  const val= document.getElementById('q-val').value||'';
+  if(!key){ toast('Key is required','warn'); return; }
+  try{
+    const r=await api.post('/secret/put',{key,value:val,namespace:S.namespace});
+    if(r.ok){ toast(`Stored ${key}`); document.getElementById('q-key').value=''; document.getElementById('q-val').value=''; renderDash(); }
+    else     { toast(await r.text()||'Failed','danger'); }
+  } catch(_){ toast('Request failed','danger'); }
+}
+
+/* ═══════════════════════════════════════════════
+   SECRETS
+═══════════════════════════════════════════════ */
+async function renderSecrets(){
+  const namespaces=await getNamespaces();
+  const nsOpts=namespaces.map(n=>`<option value="${esc(n)}" ${n===S.namespace?'selected':''}>${esc(n)}</option>`).join('');
+  document.getElementById('view').innerHTML=`
+  <div class="card card-table">
+    <div class="card-head" style="padding-bottom:14px">
+      <div class="card-title">Secrets</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <select id="ns-sel" onchange="onNsChange(this.value)" style="padding:5px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text)">${nsOpts}</select>
+        <button class="btn btn-sm btn-ghost" onclick="loadSecrets()">↺ Refresh</button>
+      </div>
+    </div>
+    <div class="tbl-wrap" id="sec-wrap"><p class="spinner">Loading…</p></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><div class="card-title">Put Secret</div></div>
+    <div class="card-body">
+      <div class="form-row">
+        <div class="field f-md"><label>Key</label><input type="text" id="put-key" placeholder="API_KEY" ${S.sealed?'disabled':''}></div>
+        <div class="field f-lg"><label>Value</label><input type="text" id="put-val" placeholder="value" ${S.sealed?'disabled':''}></div>
+        <div class="field f-sm"><label>Namespace</label><select id="put-ns" ${S.sealed?'disabled':''}>${nsOpts}</select></div>
+        <div class="f-end"><button class="btn btn-primary" onclick="doPut()" ${S.sealed?'disabled':''}>Put</button></div>
+      </div>
+    </div>
+  </div>`;
+  await loadSecrets();
+}
+function onNsChange(ns){ S.namespace=ns; const p=document.getElementById('put-ns'); if(p) p.value=ns; loadSecrets(); }
+async function loadSecrets(){
+  const wrap=document.getElementById('sec-wrap'); if(!wrap) return;
+  wrap.innerHTML='<p class="spinner">Loading…</p>';
+  try{
+    const r=await api.get(`/secret/list?namespace=${enc(S.namespace)}`);
+    if(!r.ok){ wrap.innerHTML=errHTML(await r.text()); return; }
+    const keys=await r.json();
+    if(!keys||!keys.length){ wrap.innerHTML='<p class="empty">No secrets in this namespace</p>'; return; }
+    wrap.innerHTML=`<table>
+      <thead><tr><th>Key</th><th style="width:200px">Actions</th></tr></thead>
+      <tbody>${keys.map(k=>`<tr>
+        <td class="mono">${esc(k)}</td>
+        <td><div class="actions">
+          <button class="btn btn-sm btn-primary" onclick="doGet(${q(k)})">Get</button>
+          <button class="btn btn-sm btn-ok"      onclick="doRotate(${q(k)})">Rotate</button>
+          <button class="btn btn-sm"             onclick="doHistory(${q(k)})">History</button>
+          <button class="btn btn-sm btn-danger"  onclick="doDelete(${q(k)},this)">Delete</button>
+        </div></td>
+      </tr>`).join('')}</tbody></table>`;
+  } catch(_){ wrap.innerHTML=errHTML('Request failed'); }
+}
+async function doPut(){
+  const key=(document.getElementById('put-key').value||'').trim();
+  const val= document.getElementById('put-val').value||'';
+  const ns = document.getElementById('put-ns').value;
+  if(!key){ toast('Key is required','warn'); return; }
+  try{
+    const r=await api.post('/secret/put',{key,value:val,namespace:ns});
+    if(r.ok){ toast(`Stored ${key}`); document.getElementById('put-key').value=''; document.getElementById('put-val').value=''; S.namespace=ns; loadSecrets(); }
+    else     { toast(await r.text()||'Failed','danger'); }
+  } catch(_){ toast('Request failed','danger'); }
+}
+async function doGet(key){
+  try{
+    const r=await api.get(`/secret/get?key=${enc(key)}&namespace=${enc(S.namespace)}`);
+    if(!r.ok){ toast(await r.text()||'Failed','danger'); return; }
+    const d=await r.json();
+    showModal(`Get: ${key}`,`<p class="note" style="margin-bottom:8px">Namespace: <strong>${esc(S.namespace)}</strong></p>${copyBox(d.value)}`);
+  } catch(_){ toast('Request failed','danger'); }
+}
+async function doRotate(key){
+  try{
+    const r=await api.post(`/secret/rotate?key=${enc(key)}&namespace=${enc(S.namespace)}`,null);
+    if(!r.ok){ toast(await r.text()||'Failed','danger'); return; }
+    const d=await r.json();
+    showModal(`Rotated: ${key}`,`<p class="note" style="margin-bottom:8px">New value:</p>${copyBox(d.value)}`);
+    toast(`Rotated ${key}`);
+  } catch(_){ toast('Request failed','danger'); }
+}
+async function doHistory(key){
+  try{
+    const r=await api.get(`/secret/history?key=${enc(key)}&namespace=${enc(S.namespace)}`);
+    if(!r.ok){ toast(await r.text()||'Failed','danger'); return; }
+    const vs=await r.json();
+    if(!vs||!vs.length){ showModal(`History: ${key}`,'<p class="empty">No version history</p>'); return; }
+    showModal(`History: ${key}`,`<div class="tbl-wrap"><table>
+      <thead><tr><th>V</th><th>Created</th><th>Updated</th><th>Rotated</th><th></th></tr></thead>
+      <tbody>${vs.map(v=>`<tr>
+        <td class="mono">${esc(v.version)}</td>
+        <td style="font-size:11px">${fmt(v.created_at)}</td>
+        <td style="font-size:11px">${fmt(v.updated_at)}</td>
+        <td style="font-size:11px">${fmt(v.rotated_at)}</td>
+        <td><button class="btn btn-sm btn-primary" onclick="doGetVer(${q(key)},${v.version})">Get</button></td>
+      </tr>`).join('')}</tbody></table></div>`);
+  } catch(_){ toast('Request failed','danger'); }
+}
+async function doGetVer(key,v){
+  try{
+    const r=await api.get(`/secret/version?key=${enc(key)}&namespace=${enc(S.namespace)}&version=${v}`);
+    if(!r.ok){ toast(await r.text()||'Failed','danger'); return; }
+    showModal(`${key} @ v${v}`,copyBox((await r.json()).value));
+  } catch(_){ toast('Request failed','danger'); }
+}
+async function doDelete(key,btn){
+  if(btn.dataset.confirm!=='1'){
+    btn.textContent='Confirm?'; btn.dataset.confirm='1';
+    setTimeout(()=>{ btn.textContent='Delete'; btn.dataset.confirm=''; },3000); return;
+  }
+  try{
+    const r=await api.post('/secret/delete',{key,namespace:S.namespace});
+    if(r.ok){ toast(`Deleted ${key}`,'warn'); loadSecrets(); }
+    else     { toast(await r.text()||'Failed','danger'); }
+  } catch(_){ toast('Request failed','danger'); }
+}
+
+/* ═══════════════════════════════════════════════
+   NAMESPACES
+═══════════════════════════════════════════════ */
+async function renderNs(){
+  document.getElementById('view').innerHTML=`
+  <div class="card card-table">
+    <div class="card-head" style="padding-bottom:14px"><div class="card-title">Namespaces</div></div>
+    <div class="tbl-wrap" id="ns-wrap"><p class="spinner">Loading…</p></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><div class="card-title">Create Namespace</div></div>
+    <div class="card-body">
+      <div class="form-row">
+        <div class="field f-md"><label>Name</label><input type="text" id="ns-inp" placeholder="team-backend"></div>
+        <div class="f-end"><button class="btn btn-primary" onclick="doCreateNs()">Create</button></div>
+      </div>
+    </div>
+  </div>`;
+  await loadNs();
+}
+async function loadNs(){
+  const wrap=document.getElementById('ns-wrap'); if(!wrap) return;
+  try{
+    const r=await api.get('/namespace/list');
+    if(!r.ok){ wrap.innerHTML=errHTML(await r.text()); return; }
+    const ns=await r.json();
+    if(!ns||!ns.length){ wrap.innerHTML='<p class="empty">No namespaces</p>'; return; }
+    wrap.innerHTML=`<table>
+      <thead><tr><th>Name</th><th style="width:120px">Actions</th></tr></thead>
+      <tbody>${ns.map(n=>`<tr>
+        <td class="mono">${esc(n)}</td>
+        <td>${n==='default'
+          ?'<span class="badge badge-muted">Protected</span>'
+          :`<button class="btn btn-sm btn-danger" onclick="doDeleteNs(${q(n)},this)">Delete</button>`
+        }</td>
+      </tr>`).join('')}</tbody></table>`;
+  } catch(_){ wrap.innerHTML=errHTML('Request failed'); }
+}
+async function doCreateNs(){
+  const name=(document.getElementById('ns-inp').value||'').trim();
+  if(!name){ toast('Name is required','warn'); return; }
+  try{
+    const r=await api.post('/namespace/create',{name});
+    if(r.ok){ toast(`"${name}" created`); document.getElementById('ns-inp').value=''; loadNs(); }
+    else     { toast(await r.text()||'Failed','danger'); }
+  } catch(_){ toast('Request failed','danger'); }
+}
+async function doDeleteNs(name,btn){
+  if(btn.dataset.confirm!=='1'){
+    btn.textContent='Confirm?'; btn.dataset.confirm='1';
+    setTimeout(()=>{ btn.textContent='Delete'; btn.dataset.confirm=''; },3000); return;
+  }
+  try{
+    const r=await api.post('/namespace/delete',{name});
+    if(r.ok){ toast(`"${name}" deleted`,'warn'); loadNs(); }
+    else     { toast(await r.text()||'Failed','danger'); }
+  } catch(_){ toast('Request failed','danger'); }
+}
+
+/* ═══════════════════════════════════════════════
+   TOKENS
+═══════════════════════════════════════════════ */
+async function renderTokens(){
+  const namespaces=await getNamespaces();
+  const nsOpts=namespaces.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('');
+  document.getElementById('view').innerHTML=`
+  <div class="card card-table">
+    <div class="card-head" style="padding-bottom:14px"><div class="card-title">Tokens</div></div>
+    <div class="tbl-wrap" id="tok-wrap"><p class="spinner">Loading…</p></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><div class="card-title">Create Token</div></div>
+    <div class="card-body">
+      <div class="form-row">
+        <div class="field f-md"><label>Name</label><input type="text" id="tok-inp" placeholder="ci-deploy"></div>
+        <div class="field f-sm"><label>Namespace</label><select id="tok-ns">${nsOpts}</select></div>
+        <div class="f-end"><button class="btn btn-primary" onclick="doCreateTok()">Create</button></div>
+      </div>
+      <p class="note">Token is shown once — copy it immediately after creation</p>
+    </div>
+  </div>`;
+  await loadToks();
+}
+async function loadToks(){
+  const wrap=document.getElementById('tok-wrap'); if(!wrap) return;
+  try{
+    const r=await api.get('/token/list');
+    if(!r.ok){ wrap.innerHTML=errHTML(await r.text()); return; }
+    const toks=await r.json();
+    if(!toks||!toks.length){ wrap.innerHTML='<p class="empty">No tokens</p>'; return; }
+    wrap.innerHTML=`<table>
+      <thead><tr><th>ID</th><th>Name</th><th>Namespace</th><th>Created</th><th>Status</th><th style="width:90px">Actions</th></tr></thead>
+      <tbody>${toks.map(t=>`<tr>
+        <td class="mono" style="color:var(--muted)">${esc(t.id)}</td>
+        <td style="font-weight:500">${esc(t.name)}</td>
+        <td class="mono">${esc(t.namespace)}</td>
+        <td style="font-size:11px;color:var(--muted)">${fmt(t.created_at)}</td>
+        <td><span class="badge ${t.revoked?'badge-danger':'badge-ok'}">${t.revoked?'Revoked':'Active'}</span></td>
+        <td>${!t.revoked&&t.id!=='root'
+          ?`<button class="btn btn-sm btn-danger" onclick="doRevoke(${q(t.id)},this)">Revoke</button>`
+          :`<span style="color:var(--muted);font-size:11px">${t.id==='root'?'Root':'—'}</span>`
+        }</td>
+      </tr>`).join('')}</tbody></table>`;
+  } catch(_){ wrap.innerHTML=errHTML('Request failed'); }
+}
+async function doCreateTok(){
+  const name=(document.getElementById('tok-inp').value||'').trim();
+  const ns  = document.getElementById('tok-ns').value;
+  if(!name){ toast('Name is required','warn'); return; }
+  try{
+    const r=await api.post('/token/create',{name,namespace:ns});
+    if(!r.ok){ toast(await r.text()||'Failed','danger'); return; }
+    const d=await r.json();
+    showModal('Token Created',`
+      <p class="warn-text">⚠ Save this token now — it will not be shown again</p>
+      ${copyBox(d.token)}
+      <hr class="div">
+      <table style="font-size:12px">
+        <tr><td style="color:var(--muted);padding:3px 14px 3px 0">ID</td><td class="mono">${esc(d.record.id)}</td></tr>
+        <tr><td style="color:var(--muted);padding:3px 14px 3px 0">Name</td><td>${esc(d.record.name)}</td></tr>
+        <tr><td style="color:var(--muted);padding:3px 14px 3px 0">Namespace</td><td class="mono">${esc(d.record.namespace)}</td></tr>
+      </table>`);
+    document.getElementById('tok-inp').value='';
+    toast('Token created'); loadToks();
+  } catch(_){ toast('Request failed','danger'); }
+}
+async function doRevoke(id,btn){
+  if(btn.dataset.confirm!=='1'){
+    btn.textContent='Confirm?'; btn.dataset.confirm='1';
+    setTimeout(()=>{ btn.textContent='Revoke'; btn.dataset.confirm=''; },3000); return;
+  }
+  try{
+    const r=await api.post('/token/revoke',{id});
+    if(r.ok){ toast(`Token ${id} revoked`,'warn'); loadToks(); }
+    else     { toast(await r.text()||'Failed','danger'); }
+  } catch(_){ toast('Request failed','danger'); }
+}
+</script>
+</body>
+</html>

@@ -13,11 +13,25 @@ import (
 	"rune/internal/seal"
 	"rune/internal/service"
 	"rune/internal/storage"
+	"rune/internal/ui"
 	"time"
 )
 
+const port = "8080"
+
+func printBanner() {
+	fmt.Println()
+	fmt.Println("  ┌─────────────────────────────────────────────┐")
+	fmt.Println("  │                  rune vault                  │")
+	fmt.Println("  ├─────────────────────────────────────────────┤")
+	fmt.Printf("  │  api  →  http://localhost:%s              │\n", port)
+	fmt.Printf("  │  ui   →  http://localhost:%s/ui/          │\n", port)
+	fmt.Println("  └─────────────────────────────────────────────┘")
+	fmt.Println()
+}
+
 func Start() {
-	log.Println("Starting Rune Server on: 8080")
+	log.SetFlags(0)
 
 	dbPath, err := config.GetDBPath()
 	if err != nil {
@@ -93,6 +107,7 @@ func Start() {
 	protected.HandleFunc("/secret/list", handler.ListSecrets)
 	protected.HandleFunc("/secret/rotate", handler.RotateSecret)
 	protected.HandleFunc("/seal", handler.Seal)
+	protected.HandleFunc("/token/me", handler.GetCurrentToken)
 	protected.HandleFunc("/token/create", handler.CreateToken)
 	protected.HandleFunc("/token/revoke", handler.RevokeToken)
 	protected.HandleFunc("/token/list", handler.ListTokens)
@@ -109,7 +124,9 @@ func Start() {
 	finalMux.Handle("/unseal", public)
 	finalMux.Handle("/status", public)
 	finalMux.Handle("/health", public)
+	finalMux.Handle("/ui/", http.StripPrefix("/ui", ui.Handler()))
 	finalMux.Handle("/", secured)
 
-	log.Fatal(http.ListenAndServe(":8080", finalMux))
+	printBanner()
+	log.Fatal(http.ListenAndServe(":"+port, finalMux))
 }
