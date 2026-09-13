@@ -19,14 +19,25 @@ import (
 
 const port = "8080"
 
-func printBanner() {
+const (
+	ansiReset  = "\033[0m"
+	ansiBold   = "\033[1m"
+	ansiDim    = "\033[2m"
+	ansiCyan   = "\033[96m"
+	ansiBlue   = "\033[94m"
+	ansiYellow = "\033[33m"
+	ansiGray   = "\033[90m"
+)
+
+func printBanner(dbPath string) {
 	fmt.Println()
-	fmt.Println("  ┌─────────────────────────────────────────────┐")
-	fmt.Println("  │                  rune vault                  │")
-	fmt.Println("  ├─────────────────────────────────────────────┤")
-	fmt.Printf("  │  api  →  http://localhost:%s              │\n", port)
-	fmt.Printf("  │  ui   →  http://localhost:%s/ui/          │\n", port)
-	fmt.Println("  └─────────────────────────────────────────────┘")
+	fmt.Printf("  %s%srune%s  %slocal-first secrets vault%s\n", ansiBold, ansiCyan, ansiReset, ansiDim, ansiReset)
+	fmt.Println()
+	fmt.Printf("  %s➜%s  %-6s %shttp://localhost:%s%s\n",        ansiCyan, ansiReset, "api", ansiBlue, port, ansiReset)
+	fmt.Printf("  %s➜%s  %-6s %shttp://localhost:%s/ui/%s\n",    ansiCyan, ansiReset, "ui",  ansiBold+ansiBlue, port, ansiReset)
+	fmt.Printf("  %s➜%s  %-6s %s%s%s\n",                         ansiCyan, ansiReset, "db",  ansiGray, dbPath, ansiReset)
+	fmt.Println()
+	fmt.Printf("  %s⬡  vault sealed%s  —  run %srune unseal%s or open the web UI\n", ansiYellow, ansiReset, ansiBold, ansiReset)
 	fmt.Println()
 }
 
@@ -127,6 +138,6 @@ func Start() {
 	finalMux.Handle("/ui/", http.StripPrefix("/ui", ui.Handler()))
 	finalMux.Handle("/", secured)
 
-	printBanner()
+	printBanner(dbPath)
 	log.Fatal(http.ListenAndServe(":"+port, finalMux))
 }

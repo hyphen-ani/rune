@@ -5,3 +5,7 @@ rune.db
 .env
 dist/**
 .gitignore
+
+# React UI
+ui/node_modules/
+ui/dist/

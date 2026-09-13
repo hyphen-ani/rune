@@ -9,6 +9,11 @@ mkdir -p dist
 
 echo "Building Rune ${VERSION}..."
 
+# Build UI
+echo "Building web UI..."
+npm --prefix ui install
+npm --prefix ui run build
+
 # Rune CLI
 GOOS=darwin GOARCH=arm64 \
   go build -ldflags="-s -w -X main.version=${VERSION}" \
