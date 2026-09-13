@@ -8,8 +8,9 @@ export interface TokenRecord {
 
 export interface SecretVersion {
   version: number
-  value: string
-  rotated_at?: string
+  created_at: string
+  updated_at: string
+  rotated_at: string
 }
 
 const hdr = (token: string) => ({
@@ -67,6 +68,10 @@ export const api = {
 
   listVersions: (token: string, ns: string, key: string): Promise<SecretVersion[]> =>
     fetch(`/secret/history?namespace=${encodeURIComponent(ns)}&key=${encodeURIComponent(key)}`, hdr(token))
+      .then(check).then(r => r.json()),
+
+  getSecretVersion: (token: string, ns: string, key: string, version: number): Promise<{ value: string }> =>
+    fetch(`/secret/version?namespace=${encodeURIComponent(ns)}&key=${encodeURIComponent(key)}&version=${version}`, hdr(token))
       .then(check).then(r => r.json()),
 
   listNamespaces: (token: string): Promise<string[]> =>
