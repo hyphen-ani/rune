@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
@@ -36,13 +37,23 @@ function CopyButton({ text }: { text: string }) {
 
 export function TokensView({ token, tokenInfo }: Props) {
   const [tokens, setTokens] = useState<TokenRecord[]>([])
+  const [namespaces, setNamespaces] = useState<string[]>([])
   const [addOpen, setAddOpen] = useState(false)
   const [newName, setNewName] = useState('')
-  const [newNs, setNewNs] = useState('default')
+  const [newNs, setNewNs] = useState('')
   const [creating, setCreating] = useState(false)
   const [revealedToken, setRevealedToken] = useState<string | null>(null)
 
   const isRoot = tokenInfo?.namespace === '*'
+
+  const loadNamespaces = useCallback(async () => {
+    const list = await api.listNamespaces(token).catch(() => [])
+    const ns = Array.isArray(list) ? list : []
+    setNamespaces(ns)
+    setNewNs(prev => prev || ns[0] || '')
+  }, [token])
+
+  useEffect(() => { if (isRoot) loadNamespaces() }, [isRoot, loadNamespaces])
 
   const load = useCallback(async () => {
     const list = await api.listTokens(token).catch(() => [])
@@ -106,7 +117,7 @@ export function TokensView({ token, tokenInfo }: Props) {
       </div>
 
       {/* Table */}
-      <div className="rounded-lg border border-border bg-card">
+      <div className="rounded-lg border border-border bg-card overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
@@ -181,7 +192,7 @@ export function TokensView({ token, tokenInfo }: Props) {
       </div>
 
       {/* Add token dialog */}
-      <Dialog open={addOpen} onOpenChange={open => { setAddOpen(open); if (!open) { setNewName(''); setNewNs('default') } }}>
+      <Dialog open={addOpen} onOpenChange={open => { setAddOpen(open); if (!open) { setNewName(''); setNewNs(namespaces[0] ?? '') } }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Add Token</DialogTitle>
@@ -202,15 +213,17 @@ export function TokensView({ token, tokenInfo }: Props) {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="token-ns">Namespace</Label>
-              <Input
-                id="token-ns"
-                placeholder="e.g. production"
-                value={newNs}
-                onChange={e => setNewNs(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleCreate()}
-                className="font-mono text-sm"
-              />
+              <Label>Namespace</Label>
+              <Select value={newNs} onValueChange={setNewNs}>
+                <SelectTrigger className="font-mono text-sm">
+                  <SelectValue placeholder="Select a namespace" />
+                </SelectTrigger>
+                <SelectContent>
+                  {namespaces.map(ns => (
+                    <SelectItem key={ns} value={ns} className="font-mono text-xs">{ns}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <DialogFooter>

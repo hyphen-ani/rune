@@ -3,6 +3,11 @@ package storage
 import (
 	"encoding/json"
 	"errors"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+
 	"rune/internal/auth"
 	"rune/internal/constants"
 
@@ -261,6 +266,86 @@ func (b *BoltStore) CreateNamespace(namespace string) error {
 		bucket, _ := tx.CreateBucketIfNotExists([]byte(constants.NamespacesBucket))
 		return bucket.Put([]byte(namespace), []byte("1"))
 	})
+}
+
+func (b *BoltStore) GetStats() (VaultStats, error) {
+	var stats VaultStats
+	secretsByNS := map[string]int{}
+	rotatedKeys := map[string]bool{}
+	tokensByMonth := map[string]int{}
+
+	err := b.db.View(func(tx *bolt.Tx) error {
+		// --- secrets pass ---
+		sb := tx.Bucket([]byte(bucketName))
+		if sb != nil {
+			sb.ForEach(func(k, _ []byte) error {
+				key := string(k)
+				if key == VerifyKey || key == "__rune_salt" {
+					return nil
+				}
+				if idx := strings.Index(key, "@v"); idx != -1 {
+					vStr := key[idx+2:]
+					if v, err := strconv.Atoi(vStr); err == nil && v >= 2 {
+						rotatedKeys[key[:idx]] = true
+					}
+				} else {
+					ns := key
+					if i := strings.Index(key, "/"); i != -1 {
+						ns = key[:i]
+					}
+					secretsByNS[ns]++
+					stats.TotalSecrets++
+				}
+				return nil
+			})
+		}
+
+		// --- tokens pass ---
+		tb := tx.Bucket([]byte(tokenBucket))
+		if tb != nil {
+			tb.ForEach(func(_, v []byte) error {
+				var rec auth.TokenRecord
+				if err := json.Unmarshal(v, &rec); err != nil {
+					return nil
+				}
+				stats.TotalTokens++
+				if rec.Revoked {
+					stats.RevokedTokens++
+				} else {
+					stats.ActiveTokens++
+				}
+				if t, err := time.Parse(time.RFC3339, rec.CreatedAt); err == nil {
+					tokensByMonth[t.Format("2006-01")]++
+				}
+				return nil
+			})
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return stats, err
+	}
+
+	stats.RotatedSecrets = len(rotatedKeys)
+	stats.TotalNamespaces = len(secretsByNS)
+
+	for ns, count := range secretsByNS {
+		stats.SecretsByNamespace = append(stats.SecretsByNamespace, NamespaceCount{Namespace: ns, Count: count})
+	}
+	sort.Slice(stats.SecretsByNamespace, func(i, j int) bool {
+		return stats.SecretsByNamespace[i].Count > stats.SecretsByNamespace[j].Count
+	})
+
+	for month, count := range tokensByMonth {
+		stats.TokensByMonth = append(stats.TokensByMonth, MonthCount{Month: month, Count: count})
+	}
+	sort.Slice(stats.TokensByMonth, func(i, j int) bool {
+		return stats.TokensByMonth[i].Month < stats.TokensByMonth[j].Month
+	})
+
+	return stats, nil
 }
 
 func (b *BoltStore) DeleteNamespace(namespace string) error {

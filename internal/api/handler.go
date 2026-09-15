@@ -366,6 +366,26 @@ func (h *Handler) DeleteNamespace(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("namespace deleted"))
 }
 
+// DASHBOARD
+
+func (h *Handler) GetStats(w http.ResponseWriter, r *http.Request) {
+	if !middleware.IsRoot(r) {
+		http.Error(w, "[AUTHORIZATION DENIED]: Root Access Required", http.StatusForbidden)
+		return
+	}
+	if h.sealer.IsSealed() {
+		http.Error(w, "vault is sealed", http.StatusForbidden)
+		return
+	}
+	stats, err := h.store.GetStats()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(stats)
+}
+
 // VERSIONING
 
 func (h *Handler) GetSecretVersion(w http.ResponseWriter, r *http.Request) {

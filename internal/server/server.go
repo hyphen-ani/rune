@@ -127,6 +127,7 @@ func Start() {
 	protected.HandleFunc("/namespace/delete", handler.DeleteNamespace)
 	protected.HandleFunc("/secret/version", handler.GetSecretVersion)
 	protected.HandleFunc("/secret/history", handler.ListSecretVersions)
+	protected.HandleFunc("/stats", handler.GetStats)
 
 	// APPLY MIDDLEWARE
 	secured := middleware.AuthMiddleware(store)(protected)

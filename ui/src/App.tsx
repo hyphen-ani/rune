@@ -10,13 +10,17 @@ import { LoginView } from "@/components/LoginView"
 import { SecretsView } from "@/components/SecretsView"
 import { NamespacesView } from "@/components/NamespacesView"
 import { TokensView } from "@/components/TokensView"
+import { IntegrationsView } from "@/components/IntegrationsView"
+import { DashboardView } from "@/components/DashboardView"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 
-export type View = "secrets" | "namespaces" | "tokens"
+export type View = "dashboard" | "secrets" | "namespaces" | "tokens" | "integrations"
+
+const ALL_VIEWS: View[] = ["dashboard", "secrets", "namespaces", "tokens", "integrations"]
 
 function getInitialView(): View {
   const hash = window.location.hash.slice(1) as View
-  return (["secrets", "namespaces", "tokens"] as View[]).includes(hash) ? hash : "secrets"
+  return ALL_VIEWS.includes(hash) ? hash : "secrets"
 }
 
 export { toast }
@@ -125,7 +129,7 @@ export default function App() {
   }
 
   return (
-    <SidebarProvider>
+    <SidebarProvider className="bg-sidebar">
       <AppSidebar
         view={view}
         onNavigate={setView}
@@ -133,12 +137,14 @@ export default function App() {
         onLogout={handleLogout}
         onSeal={handleSeal}
       />
-      <SidebarInset>
+      <SidebarInset className="mt-2 mr-2 rounded-tl-xl rounded-tr-xl overflow-hidden">
         <SiteHeader view={view} />
         <div className="flex flex-1 flex-col overflow-auto">
           {view === "secrets"    && <SecretsView    token={token} tokenInfo={tokenInfo} sealed={false} />}
           {view === "namespaces" && <NamespacesView token={token} tokenInfo={tokenInfo} />}
           {view === "tokens"     && <TokensView     token={token} tokenInfo={tokenInfo} />}
+          {view === "dashboard"     && <DashboardView token={token} />}
+          {view === "integrations" && <IntegrationsView />}
         </div>
       </SidebarInset>
       <Toaster richColors theme={toasterTheme} position="bottom-right" />

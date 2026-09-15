@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Eye, RotateCcw, History, Trash2, Copy, Check, KeyRound, RefreshCw } from 'lucide-react'
+import { Plus, Eye, RotateCcw, History, Trash2, Copy, Check, KeyRound, RefreshCw, Upload } from 'lucide-react'
 import { api, type TokenRecord, type SecretVersion } from '@/lib/api'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -105,6 +105,11 @@ export function SecretsView({ token, tokenInfo, sealed }: Props) {
   const [valueModal, setValueModal] = useState<ValueModal | null>(null)
   const [historyModal, setHistoryModal] = useState<HistoryModal | null>(null)
   const [historyLoading, setHistoryLoading] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
+  const [importData, setImportData] = useState<Record<string, string> | null>(null)
+  const [importNs, setImportNs] = useState('')
+  const [importing, setImporting] = useState(false)
+  const [importProgress, setImportProgress] = useState({ done: 0, total: 0 })
 
   const isRoot = tokenInfo?.namespace === '*'
 
@@ -179,6 +184,50 @@ export function SecretsView({ token, tokenInfo, sealed }: Props) {
     setPutting(false)
   }
 
+  function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      try {
+        const parsed = JSON.parse(ev.target?.result as string)
+        if (typeof parsed !== 'object' || Array.isArray(parsed) || parsed === null) {
+          toast.error('Invalid format', { description: 'JSON must be a flat key-value object' })
+          return
+        }
+        const data: Record<string, string> = {}
+        for (const [k, v] of Object.entries(parsed)) data[k] = String(v)
+        setImportData(data)
+      } catch {
+        toast.error('Invalid JSON', { description: 'Could not parse the selected file' })
+      }
+    }
+    reader.readAsText(file)
+  }
+
+  async function handleImport() {
+    if (!importData) return
+    const entries = Object.entries(importData)
+    setImporting(true)
+    setImportProgress({ done: 0, total: entries.length })
+    const failed: string[] = []
+    for (const [key, value] of entries) {
+      await api.putSecret(token, importNs, key, value).catch(() => failed.push(key))
+      setImportProgress(p => ({ ...p, done: p.done + 1 }))
+    }
+    setImporting(false)
+    if (failed.length === 0) {
+      toast.success(`Imported ${entries.length} secret${entries.length !== 1 ? 's' : ''}`)
+    } else {
+      toast.error(`${failed.length} secret${failed.length !== 1 ? 's' : ''} failed to import`, {
+        description: failed.join(', '),
+      })
+    }
+    setImportOpen(false)
+    setImportData(null)
+    loadKeys()
+  }
+
   if (sealed) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -214,6 +263,10 @@ export function SecretsView({ token, tokenInfo, sealed }: Props) {
                 </SelectContent>
               </Select>
             )}
+            <Button size="sm" variant="outline" onClick={() => { setImportNs(namespaces[0] ?? ns); setImportOpen(true) }}>
+              <Upload className="h-4 w-4" />
+              Import JSON
+            </Button>
             <Button size="sm" onClick={() => setAddOpen(true)}>
               <Plus className="h-4 w-4" />
               Add secret
@@ -478,6 +531,93 @@ export function SecretsView({ token, tokenInfo, sealed }: Props) {
                 )}
               </div>
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Import JSON dialog */}
+        <Dialog
+          open={importOpen}
+          onOpenChange={open => {
+            setImportOpen(open)
+            if (!open) { setImportData(null); setImportProgress({ done: 0, total: 0 }) }
+          }}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Import secrets from JSON</DialogTitle>
+              <DialogDescription>
+                Upload a <span className="font-mono">.json</span> file containing a flat key → value object.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-1">
+              {/* File picker */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">JSON file</Label>
+                <input
+                  type="file"
+                  accept=".json,application/json"
+                  onChange={handleImportFile}
+                  className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-md file:border file:border-border file:bg-muted file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-foreground hover:file:bg-accent cursor-pointer"
+                />
+              </div>
+
+              {/* Namespace */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Namespace</Label>
+                {isRoot ? (
+                  <Select value={importNs} onValueChange={setImportNs}>
+                    <SelectTrigger className="h-9 text-xs font-mono">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {namespaces.map(n => (
+                        <SelectItem key={n} value={n} className="text-xs font-mono">{n}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Badge variant="outline" className="font-mono text-xs font-normal">{ns}</Badge>
+                )}
+              </div>
+
+              {/* Preview */}
+              {importData && (
+                <div className="rounded-lg border border-border bg-muted/40 overflow-hidden">
+                  <div className="px-3 py-2 border-b border-border">
+                    <p className="text-xs font-medium">
+                      Found {Object.keys(importData).length} secret{Object.keys(importData).length !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+                  <div className="max-h-40 overflow-y-auto px-3 py-2 space-y-1">
+                    {Object.keys(importData).map(k => (
+                      <p key={k} className="text-xs font-mono text-muted-foreground truncate">{k}</p>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Progress */}
+              {importing && (
+                <p className="text-xs text-muted-foreground">
+                  Importing… {importProgress.done} / {importProgress.total}
+                </p>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setImportOpen(false)} disabled={importing}>Cancel</Button>
+              <Button
+                onClick={handleImport}
+                disabled={!importData || importing}
+              >
+                {importing
+                  ? `Importing… ${importProgress.done}/${importProgress.total}`
+                  : importData
+                  ? `Import ${Object.keys(importData).length} secret${Object.keys(importData).length !== 1 ? 's' : ''}`
+                  : 'Import'}
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>

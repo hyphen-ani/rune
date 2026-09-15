@@ -12,9 +12,11 @@ import {
 import type { View } from "@/App"
 
 const VIEW_LABELS: Record<View, string> = {
-  secrets:    "Secrets",
-  namespaces: "Namespaces",
-  tokens:     "Tokens",
+  dashboard:    "Dashboard",
+  secrets:      "Secrets",
+  namespaces:   "Namespaces",
+  tokens:       "Tokens",
+  integrations: "Integrations",
 }
 
 interface Props {

@@ -1,6 +1,6 @@
 import * as React from "react"
-import { KeyRound, Layers, Coins, Lock, LockKeyhole } from "lucide-react"
-import logo from "@/assets/logo.png"
+import { KeyRound, Layers, Coins, Lock, LockKeyhole, Plug, LayoutDashboard } from "lucide-react"
+import runeIcon from "@/assets/rune-icon.png"
 
 import { NavUser } from "@/components/nav-user"
 import {
@@ -56,16 +56,16 @@ export function AppSidebar({ view, onNavigate, tokenInfo, onLogout, onSeal, ...p
   const isRoot = tokenInfo?.namespace === "*"
 
   return (
-    <Sidebar collapsible="offcanvas" {...props}>
+    <Sidebar collapsible="icon" {...props}>
       {/* Logo */}
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild className="pointer-events-none select-none">
               <div>
-                <img src={logo} alt="rune" className="size-8 rounded-lg object-contain" />
+                <img src={runeIcon} alt="rune" className="size-8 rounded-lg object-contain" />
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">rune</span>
+                  <span className="truncate font-semibold">Rune Vault</span>
                   <span className="truncate text-xs font-mono text-emerald-600 dark:text-emerald-400">
                     unsealed
                   </span>
@@ -78,6 +78,26 @@ export function AppSidebar({ view, onNavigate, tokenInfo, onLogout, onSeal, ...p
 
       {/* Nav */}
       <SidebarContent>
+        {/* Dashboard — root only */}
+        {isRoot && (
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    isActive={view === "dashboard"}
+                    onClick={() => onNavigate("dashboard")}
+                    tooltip="Dashboard"
+                  >
+                    <LayoutDashboard />
+                    <span>Dashboard</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
         <SidebarGroup>
           <SidebarGroupLabel>Vault</SidebarGroupLabel>
           <SidebarGroupContent>
@@ -103,6 +123,30 @@ export function AppSidebar({ view, onNavigate, tokenInfo, onLogout, onSeal, ...p
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {/* Integrations — root only */}
+        {isRoot && (
+          <>
+            <SidebarSeparator />
+            <SidebarGroup>
+              <SidebarGroupLabel>Integrations</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={view === "integrations"}
+                      onClick={() => onNavigate("integrations")}
+                      tooltip="Integrations"
+                    >
+                      <Plug />
+                      <span>Integrations</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </>
+        )}
 
         {/* Seal vault — root only */}
         {isRoot && (

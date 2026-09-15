@@ -1,3 +1,24 @@
+export interface NamespaceCount {
+  namespace: string
+  count: number
+}
+
+export interface MonthCount {
+  month: string
+  count: number
+}
+
+export interface VaultStats {
+  total_secrets: number
+  total_namespaces: number
+  rotated_secrets: number
+  total_tokens: number
+  active_tokens: number
+  revoked_tokens: number
+  secrets_by_namespace: NamespaceCount[]
+  tokens_by_month: MonthCount[]
+}
+
 export interface TokenRecord {
   id: string
   name: string
@@ -103,4 +124,7 @@ export const api = {
       method: 'POST', ...hdr(token),
       body: JSON.stringify({ id }),
     }).then(check),
+
+  getStats: (token: string): Promise<VaultStats> =>
+    fetch('/stats', hdr(token)).then(check).then(r => r.json()),
 }
