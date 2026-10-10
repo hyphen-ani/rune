@@ -14,6 +14,9 @@ type TokenRecord struct {
 	Namespace string `json:"namespace"`
 	CreatedAt string `json:"created_at"`
 	Revoked   bool   `json:"revoked"`
+	ReadOnly  bool   `json:"read_only,omitempty"`
+	System    bool   `json:"system,omitempty"`
+	EncSysKey string `json:"enc_sys_key,omitempty"` // sysKey encrypted under vault key; only set for system tokens
 }
 
 func GenerateToken() (string, string) {

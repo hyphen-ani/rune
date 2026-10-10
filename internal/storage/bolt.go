@@ -16,6 +16,7 @@ import (
 
 const bucketName = "secrets"
 const tokenBucket = "__rune_tokens"
+const sysBucket = "__rune_sys_secrets"
 
 type BoltStore struct {
 	db *bolt.DB
@@ -29,7 +30,14 @@ func NewBoltStore(path string) (*BoltStore, error) {
 
 	err = db.Update(func(tx *bolt.Tx) error {
 		_, err := tx.CreateBucketIfNotExists([]byte(bucketName))
+		if err != nil {
+			return err
+		}
 		_, err = tx.CreateBucketIfNotExists([]byte(tokenBucket))
+		if err != nil {
+			return err
+		}
+		_, err = tx.CreateBucketIfNotExists([]byte(sysBucket))
 		return err
 	})
 
@@ -356,4 +364,94 @@ func (b *BoltStore) DeleteNamespace(namespace string) error {
 		}
 		return bucket.Delete([]byte(namespace))
 	})
+}
+
+func sysSecretKey(tokenID, namespace, key string) string {
+	return tokenID + "/" + namespace + "/" + key
+}
+
+func (b *BoltStore) PutSystemSecret(tokenID, namespace, key string, rec SecretRecord) error {
+	return b.db.Update(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte(sysBucket))
+		data, err := json.Marshal(rec)
+		if err != nil {
+			return err
+		}
+		return bucket.Put([]byte(sysSecretKey(tokenID, namespace, key)), data)
+	})
+}
+
+func (b *BoltStore) GetSystemSecret(tokenID, namespace, key string) (SecretRecord, error) {
+	var record SecretRecord
+	err := b.db.View(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte(sysBucket))
+		data := bucket.Get([]byte(sysSecretKey(tokenID, namespace, key)))
+		if data == nil {
+			return errors.New("[NOT FOUND] System secret not found")
+		}
+		return json.Unmarshal(data, &record)
+	})
+	return record, err
+}
+
+func (b *BoltStore) DeleteSystemSecret(tokenID, namespace, key string) error {
+	return b.db.Update(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte(sysBucket))
+		return bucket.Delete([]byte(sysSecretKey(tokenID, namespace, key)))
+	})
+}
+
+func (b *BoltStore) DeleteAllSystemSecrets(tokenID string) error {
+	prefix := tokenID + "/"
+	return b.db.Update(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte(sysBucket))
+		var toDelete [][]byte
+		bucket.ForEach(func(k, _ []byte) error {
+			if strings.HasPrefix(string(k), prefix) {
+				toDelete = append(toDelete, append([]byte{}, k...))
+			}
+			return nil
+		})
+		for _, k := range toDelete {
+			bucket.Delete(k)
+		}
+		return nil
+	})
+}
+
+func (b *BoltStore) ListSystemSecretKeys(tokenID, namespace string) ([]string, error) {
+	prefix := tokenID + "/" + namespace + "/"
+	var keys []string
+	err := b.db.View(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte(sysBucket))
+		return bucket.ForEach(func(k, _ []byte) error {
+			s := string(k)
+			if strings.HasPrefix(s, prefix) {
+				keys = append(keys, strings.TrimPrefix(s, prefix))
+			}
+			return nil
+		})
+	})
+	return keys, err
+}
+
+func (b *BoltStore) ListSystemTokensForNamespace(namespace string) ([]auth.TokenRecord, error) {
+	var result []auth.TokenRecord
+	err := b.db.View(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte(tokenBucket))
+		if bucket == nil {
+			return nil
+		}
+		return bucket.ForEach(func(_, v []byte) error {
+			var rec auth.TokenRecord
+			if err := json.Unmarshal(v, &rec); err != nil {
+				return nil
+			}
+			if rec.System && !rec.Revoked && rec.Namespace == namespace {
+				result = append(result, rec)
+			}
+			return nil
+		})
+	})
+	return result, err
 }

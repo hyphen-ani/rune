@@ -1,0 +1,6 @@
+io/rune/sdk/RuneClient.class
+io/rune/sdk/RuneAutoConfiguration.class
+io/rune/sdk/RuneEnvironmentPostProcessor.class
+io/rune/sdk/RuneException.class
+io/rune/sdk/RunePropertySource.class
+io/rune/sdk/RuneProperties.class

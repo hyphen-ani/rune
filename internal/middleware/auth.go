@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"log"
 	"net/http"
 	"rune/internal/storage"
 	"strings"
@@ -42,7 +41,6 @@ func AuthMiddleware(store storage.Store) func(http.Handler) http.Handler {
 				http.Error(w, "invalid token", http.StatusUnauthorized)
 				return
 			}
-			log.Printf("AUTH DEBUG -> ID=%q Name=%q Namespace=%q Revoked=%t", record.ID, record.Name, record.Namespace, record.Revoked)
 
 			if record.Revoked {
 				http.Error(w, "token has been revoked", http.StatusUnauthorized)
@@ -50,6 +48,7 @@ func AuthMiddleware(store storage.Store) func(http.Handler) http.Handler {
 			}
 
 			ctx := context.WithValue(r.Context(), TokenContextKey, record)
+			ctx = context.WithValue(ctx, PlainTokenContextKey, token)
 			next.ServeHTTP(w, r.WithContext(ctx))
 
 		})

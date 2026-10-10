@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Trash2, Lock, Copy, Check, KeySquare } from 'lucide-react'
+import { Plus, Trash2, Lock, Copy, Check, KeySquare, Bot } from 'lucide-react'
 import { api, type TokenRecord } from '@/lib/api'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -38,11 +38,22 @@ function CopyButton({ text }: { text: string }) {
 export function TokensView({ token, tokenInfo }: Props) {
   const [tokens, setTokens] = useState<TokenRecord[]>([])
   const [namespaces, setNamespaces] = useState<string[]>([])
+
+  // Regular token dialog
   const [addOpen, setAddOpen] = useState(false)
   const [newName, setNewName] = useState('')
   const [newNs, setNewNs] = useState('')
   const [creating, setCreating] = useState(false)
+
+  // System token dialog
+  const [sysAddOpen, setSysAddOpen] = useState(false)
+  const [sysNewName, setSysNewName] = useState('')
+  const [sysNewNs, setSysNewNs] = useState('')
+  const [sysCreating, setSysCreating] = useState(false)
+
+  // Reveal modal — shared between regular and system token creation
   const [revealedToken, setRevealedToken] = useState<string | null>(null)
+  const [revealedIsSystem, setRevealedIsSystem] = useState(false)
 
   const isRoot = tokenInfo?.namespace === '*'
 
@@ -51,6 +62,7 @@ export function TokensView({ token, tokenInfo }: Props) {
     const ns = Array.isArray(list) ? list : []
     setNamespaces(ns)
     setNewNs(prev => prev || ns[0] || '')
+    setSysNewNs(prev => prev || ns[0] || '')
   }, [token])
 
   useEffect(() => { if (isRoot) loadNamespaces() }, [isRoot, loadNamespaces])
@@ -81,13 +93,32 @@ export function TokensView({ token, tokenInfo }: Props) {
     await api.createToken(token, name, ns)
       .then(r => {
         setRevealedToken(r.token)
+        setRevealedIsSystem(false)
         setNewName('')
-        setNewNs('default')
+        setNewNs(namespaces[0] ?? '')
         setAddOpen(false)
         load()
       })
       .catch(e => toast.error('Create failed', { description: String(e) }))
     setCreating(false)
+  }
+
+  async function handleCreateSystem() {
+    const name = sysNewName.trim()
+    const ns = sysNewNs.trim()
+    if (!name || !ns) return
+    setSysCreating(true)
+    await api.createSystemToken(token, name, ns)
+      .then(r => {
+        setRevealedToken(r.token)
+        setRevealedIsSystem(true)
+        setSysNewName('')
+        setSysNewNs(namespaces[0] ?? '')
+        setSysAddOpen(false)
+        load()
+      })
+      .catch(e => toast.error('Create failed', { description: String(e) }))
+    setSysCreating(false)
   }
 
   async function handleRevoke(id: string) {
@@ -110,10 +141,16 @@ export function TokensView({ token, tokenInfo }: Props) {
             {tokens.length} token{tokens.length !== 1 ? 's' : ''}
           </p>
         </div>
-        <Button size="sm" onClick={() => setAddOpen(true)}>
-          <Plus className="h-4 w-4" />
-          Add Token
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => setSysAddOpen(true)}>
+            <Bot className="h-4 w-4" />
+            System Token
+          </Button>
+          <Button size="sm" onClick={() => setAddOpen(true)}>
+            <Plus className="h-4 w-4" />
+            Add Token
+          </Button>
+        </div>
       </div>
 
       {/* Table */}
@@ -123,6 +160,7 @@ export function TokensView({ token, tokenInfo }: Props) {
             <TableRow className="hover:bg-transparent">
               <TableHead>Name</TableHead>
               <TableHead>Namespace</TableHead>
+              <TableHead>Type</TableHead>
               <TableHead>Created</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="w-16 text-right">Actions</TableHead>
@@ -131,7 +169,7 @@ export function TokensView({ token, tokenInfo }: Props) {
           <TableBody>
             {tokens.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5} className="py-16">
+                <TableCell colSpan={6} className="py-16">
                   <div className="flex flex-col items-center gap-3 text-center">
                     <div className="rounded-full bg-muted p-3">
                       <KeySquare className="h-5 w-5 text-muted-foreground" />
@@ -155,6 +193,18 @@ export function TokensView({ token, tokenInfo }: Props) {
                   <Badge variant="outline" className="font-mono text-xs">
                     {t.namespace === '*' ? 'root' : t.namespace}
                   </Badge>
+                </TableCell>
+                <TableCell>
+                  {t.system ? (
+                    <Badge variant="secondary" className="text-xs gap-1 text-sky-400 border-sky-400/30 bg-sky-400/10">
+                      <Bot className="h-3 w-3" />
+                      system
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-xs text-muted-foreground">
+                      regular
+                    </Badge>
+                  )}
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">{fmt(t.created_at)}</TableCell>
                 <TableCell>
@@ -235,13 +285,65 @@ export function TokensView({ token, tokenInfo }: Props) {
         </DialogContent>
       </Dialog>
 
-      {/* Token reveal modal (one-time) */}
+      {/* Add system token dialog */}
+      <Dialog open={sysAddOpen} onOpenChange={open => { setSysAddOpen(open); if (!open) { setSysNewName(''); setSysNewNs(namespaces[0] ?? '') } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Bot className="h-4 w-4 text-sky-400" />
+              Add System Token
+            </DialogTitle>
+            <DialogDescription>
+              Read-only SDK token. Can read secrets even when the vault is sealed. Use with the Rune Spring Boot starter or other SDKs.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="sys-token-name">Name</Label>
+              <Input
+                id="sys-token-name"
+                placeholder="e.g. spring-prod"
+                value={sysNewName}
+                onChange={e => setSysNewName(e.target.value)}
+                className="text-sm"
+                autoFocus
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Namespace</Label>
+              <Select value={sysNewNs} onValueChange={setSysNewNs}>
+                <SelectTrigger className="font-mono text-sm">
+                  <SelectValue placeholder="Select a namespace" />
+                </SelectTrigger>
+                <SelectContent>
+                  {namespaces.map(ns => (
+                    <SelectItem key={ns} value={ns} className="font-mono text-xs">{ns}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-xs text-muted-foreground rounded-md bg-muted px-3 py-2">
+              This token is <span className="font-medium">read-only</span> — it cannot write, delete, or rotate secrets.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSysAddOpen(false)}>Cancel</Button>
+            <Button onClick={handleCreateSystem} disabled={!sysNewName.trim() || !sysNewNs.trim() || sysCreating}>
+              {sysCreating ? 'Creating…' : 'Create System Token'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Token reveal modal (one-time) — shared for both token types */}
       <Dialog open={!!revealedToken} onOpenChange={open => !open && setRevealedToken(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Token created</DialogTitle>
+            <DialogTitle>{revealedIsSystem ? 'System token created' : 'Token created'}</DialogTitle>
             <DialogDescription>
-              Copy this token now — it will not be shown again.
+              {revealedIsSystem
+                ? 'Copy this token and set it as RUNE_SYSTEM_TOKEN in your SDK config. It will not be shown again.'
+                : 'Copy this token now — it will not be shown again.'}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">

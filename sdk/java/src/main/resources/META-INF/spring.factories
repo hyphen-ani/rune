@@ -1,0 +1,5 @@
+# Spring Boot 2.x compatibility
+org.springframework.boot.env.EnvironmentPostProcessor=\
+  io.rune.sdk.RuneEnvironmentPostProcessor
+org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
+  io.rune.sdk.RuneAutoConfiguration

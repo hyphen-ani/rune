@@ -120,6 +120,7 @@ func Start() {
 	protected.HandleFunc("/seal", handler.Seal)
 	protected.HandleFunc("/token/me", handler.GetCurrentToken)
 	protected.HandleFunc("/token/create", handler.CreateToken)
+	protected.HandleFunc("/token/create-system", handler.CreateSystemToken)
 	protected.HandleFunc("/token/revoke", handler.RevokeToken)
 	protected.HandleFunc("/token/list", handler.ListTokens)
 	protected.HandleFunc("/namespace/create", handler.CreateNamespace)

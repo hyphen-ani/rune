@@ -1,8 +1,8 @@
 package service
 
 import (
+	"encoding/hex"
 	"errors"
-	"log"
 	"rune/internal/auth"
 	"rune/internal/constants"
 	"rune/internal/crypto"
@@ -71,14 +71,6 @@ func (s *SecretService) Put(namespace, key, value string) error {
 	if err != nil {
 		return err
 	}
-
-	log.Printf(
-
-		"PUT DEBUG -> namespace=%q key=%q fullKey=%q",
-		ns,
-		key,
-		fullKey,
-	)
 	now := time.Now().Format(time.RFC3339)
 
 	record := storage.SecretRecord{
@@ -100,7 +92,8 @@ func (s *SecretService) Put(namespace, key, value string) error {
 		return err
 	}
 
-	return s.store.Put(fullKey, record)
+	s.syncSystemSecrets(ns, cleanKey, []byte(value), k, now)
+	return nil
 }
 func (s *SecretService) Get(namespace, key string) (string, error) {
 
@@ -143,15 +136,8 @@ func (s *SecretService) Delete(namespace, key string) error {
 		return errors.New("[OPERATION DENIED]: Namespace does not exist")
 	}
 
-	fullKey := ns + "/" + key
-
-	log.Printf(
-		"DELETE DEBUG -> namespace=%q key=%q fullKey=%q",
-		ns,
-		key,
-		fullKey,
-	)
-
+	cleanKey := sanitizeKey(key)
+	fullKey := ns + "/" + cleanKey
 	current, err := s.store.Get(fullKey)
 	if err != nil {
 		return err
@@ -164,6 +150,11 @@ func (s *SecretService) Delete(namespace, key string) error {
 
 	if err := s.store.Delete(fullKey); err != nil {
 		return err
+	}
+
+	sysTokens, _ := s.store.ListSystemTokensForNamespace(ns)
+	for _, st := range sysTokens {
+		s.store.DeleteSystemSecret(st.ID, ns, cleanKey)
 	}
 
 	return nil
@@ -250,6 +241,7 @@ func (s *SecretService) Rotate(namespace string, key string) (string, error) {
 		return "", err
 	}
 
+	s.syncSystemSecrets(ns, key, []byte(newValue), k, now)
 	return newValue, nil
 }
 func (s *SecretService) GetVersion(namespace, key string, version int) (string, error) {
@@ -282,6 +274,68 @@ func (s *SecretService) GetVersion(namespace, key string, version int) (string, 
 
 	return string(plaintext), nil
 }
+func (s *SecretService) syncSystemSecrets(ns, key string, plaintext []byte, vaultKey []byte, now string) {
+	sysTokens, err := s.store.ListSystemTokensForNamespace(ns)
+	if err != nil {
+		return
+	}
+	for _, st := range sysTokens {
+		sysKey, err := decryptSysKey(st.EncSysKey, vaultKey)
+		if err != nil {
+			continue
+		}
+		ct, nonce, err := crypto.Encrypt(sysKey, plaintext)
+		if err != nil {
+			continue
+		}
+		sysRecord := storage.SecretRecord{
+			Ciphertext: ct,
+			Nonce:      nonce,
+			CreatedAt:  now,
+			UpdatedAt:  now,
+		}
+		s.store.PutSystemSecret(st.ID, ns, key, sysRecord)
+	}
+}
+
+func decryptSysKey(encSysKey string, vaultKey []byte) ([]byte, error) {
+	parts := strings.SplitN(encSysKey, ":", 2)
+	if len(parts) != 2 {
+		return nil, errors.New("invalid enc_sys_key format")
+	}
+	ciphertext, err := hex.DecodeString(parts[0])
+	if err != nil {
+		return nil, err
+	}
+	nonce, err := hex.DecodeString(parts[1])
+	if err != nil {
+		return nil, err
+	}
+	return crypto.Decrypt(vaultKey, ciphertext, nonce)
+}
+
+func (s *SecretService) GetViaSealedSystemToken(tokenID, namespace, key string, sysKey []byte) (string, error) {
+	ns := normalizeNamespace(namespace)
+	cleanKey := sanitizeKey(key)
+	if cleanKey == "" {
+		return "", errors.New("[INVALID]: Invalid Key")
+	}
+	record, err := s.store.GetSystemSecret(tokenID, ns, cleanKey)
+	if err != nil {
+		return "", err
+	}
+	plaintext, err := crypto.Decrypt(sysKey, record.Ciphertext, record.Nonce)
+	if err != nil {
+		return "", errors.New("[DECRYPTION FAILED]: Could not decrypt secret")
+	}
+	return string(plaintext), nil
+}
+
+func (s *SecretService) ListViaSealedSystemToken(tokenID, namespace string) ([]string, error) {
+	ns := normalizeNamespace(namespace)
+	return s.store.ListSystemSecretKeys(tokenID, ns)
+}
+
 func (s *SecretService) ListVersions(namespaceName string, key string) ([]SecretVersion, error) {
 
 	if s.sealer.IsSealed() {
@@ -313,14 +367,6 @@ func (s *SecretService) ListVersions(namespaceName string, key string) ([]Secret
 			UpdatedAt: record.UpdatedAt,
 			RotatedAt: record.RotatedAt,
 		})
-
-		log.Printf(
-			"VERSION DEBUG -> version=%d created=%q updated=%q rotated=%q",
-			record.Version,
-			record.CreatedAt,
-			record.UpdatedAt,
-			record.RotatedAt,
-		)
 	}
 
 	return versions, nil

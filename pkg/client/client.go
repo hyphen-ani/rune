@@ -246,6 +246,32 @@ func (c *Client) CreateToken(name string, namespace string) (string, auth.TokenR
 	json.NewDecoder(resp.Body).Decode(&result)
 	return result.Token, result.Record, nil
 }
+func (c *Client) CreateSystemToken(name string, namespace string) (string, auth.TokenRecord, error) {
+	body := map[string]string{
+		"name":      name,
+		"namespace": namespace,
+	}
+	data, _ := json.Marshal(body)
+	req, _ := http.NewRequest("POST", c.BaseURL+"/token/create-system", bytes.NewBuffer(data))
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", auth.TokenRecord{}, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return "", auth.TokenRecord{}, fmt.Errorf(string(b))
+	}
+	var result struct {
+		Token  string           `json:"token"`
+		Record auth.TokenRecord `json:"record"`
+	}
+	json.NewDecoder(resp.Body).Decode(&result)
+	return result.Token, result.Record, nil
+}
+
 func (c *Client) ListTokens() ([]auth.TokenRecord, error) {
 
 	req, _ := http.NewRequest("GET", c.BaseURL+"/token/list", nil)

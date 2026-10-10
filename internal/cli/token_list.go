@@ -35,27 +35,33 @@ var tokenListCmd = &cobra.Command{
 
 		// 🧾 Header
 		fmt.Println("\nTokens:\n")
-		fmt.Printf("  %-28s %-20s %-25s %-10s\n", "ID", "NAME", "CREATED AT", "STATUS")
-		fmt.Println("  --------------------------------------------------------------------------------------")
+		fmt.Printf("  %-28s %-20s %-25s %-10s %-10s\n", "ID", "NAME", "CREATED AT", "TYPE", "STATUS")
+		fmt.Println("  -------------------------------------------------------------------------------------------------")
 
 		for _, t := range tokens {
 
 			status := "active"
-			color := "\033[32m"
+			statusColor := "\033[32m"
 
 			if t.Revoked {
 				status = "revoked"
-				color = "\033[31m"
+				statusColor = "\033[31m"
+			}
+
+			tokenType := "regular"
+			if t.System {
+				tokenType = "system"
 			}
 
 			reset := "\033[0m"
 
 			fmt.Printf(
-				"  %-28s %-20s %-25s %s%-10s%s\n",
+				"  %-28s %-20s %-25s %-10s %s%-10s%s\n",
 				t.ID,
 				t.Name,
 				t.CreatedAt,
-				color,
+				tokenType,
+				statusColor,
 				status,
 				reset,
 			)

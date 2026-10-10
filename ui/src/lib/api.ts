@@ -25,6 +25,8 @@ export interface TokenRecord {
   namespace: string
   created_at: string
   revoked: boolean
+  system?: boolean
+  read_only?: boolean
 }
 
 export interface SecretVersion {
@@ -115,6 +117,12 @@ export const api = {
 
   createToken: (token: string, name: string, namespace: string): Promise<{ token: string; record: TokenRecord }> =>
     fetch('/token/create', {
+      method: 'POST', ...hdr(token),
+      body: JSON.stringify({ name, namespace }),
+    }).then(check).then(r => r.json()),
+
+  createSystemToken: (token: string, name: string, namespace: string): Promise<{ token: string; record: TokenRecord }> =>
+    fetch('/token/create-system', {
       method: 'POST', ...hdr(token),
       body: JSON.stringify({ name, namespace }),
     }).then(check).then(r => r.json()),

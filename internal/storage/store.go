@@ -25,6 +25,13 @@ type Store interface {
 	DeleteNamespace(namespace string) error
 
 	GetStats() (VaultStats, error)
+
+	PutSystemSecret(tokenID, namespace, key string, rec SecretRecord) error
+	GetSystemSecret(tokenID, namespace, key string) (SecretRecord, error)
+	DeleteSystemSecret(tokenID, namespace, key string) error
+	DeleteAllSystemSecrets(tokenID string) error
+	ListSystemSecretKeys(tokenID, namespace string) ([]string, error)
+	ListSystemTokensForNamespace(namespace string) ([]auth.TokenRecord, error)
 }
 
 type NamespaceCount struct {

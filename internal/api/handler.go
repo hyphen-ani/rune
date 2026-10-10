@@ -52,6 +52,11 @@ func (h *Handler) PutSecret(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if middleware.IsReadOnly(r) {
+		http.Error(w, "[AUTHORIZATION DENIED]: Read-only token cannot perform this operation", http.StatusForbidden)
+		return
+	}
+
 	err := h.secretService.Put(namespaceName, req.Key, req.Value)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusForbidden)
@@ -69,7 +74,17 @@ func (h *Handler) GetSecret(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	val, err := h.secretService.Get(namespaceName, key)
+	var val string
+	var err error
+
+	tokenRecord := middleware.GetTokenRecord(r)
+	if h.sealer.IsSealed() && tokenRecord != nil && tokenRecord.System {
+		sysKey := crypto.DeriveSysKey(middleware.GetPlainToken(r))
+		val, err = h.secretService.GetViaSealedSystemToken(tokenRecord.ID, namespaceName, key, sysKey)
+	} else {
+		val, err = h.secretService.Get(namespaceName, key)
+	}
+
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -86,7 +101,16 @@ func (h *Handler) ListSecrets(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	keys, err := h.secretService.ListKeys(namespaceName)
+	var keys []string
+	var err error
+
+	tokenRecord := middleware.GetTokenRecord(r)
+	if h.sealer.IsSealed() && tokenRecord != nil && tokenRecord.System {
+		keys, err = h.secretService.ListViaSealedSystemToken(tokenRecord.ID, namespaceName)
+	} else {
+		keys, err = h.secretService.ListKeys(namespaceName)
+	}
+
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusForbidden)
 		return
@@ -125,6 +149,10 @@ func (h *Handler) DeleteSecret(w http.ResponseWriter, r *http.Request) {
 		)
 		return
 	}
+	if middleware.IsReadOnly(r) {
+		http.Error(w, "[AUTHORIZATION DENIED]: Read-only token cannot perform this operation", http.StatusForbidden)
+		return
+	}
 	err := h.secretService.Delete(
 		namespace,
 		key,
@@ -149,6 +177,11 @@ func (h *Handler) RotateSecret(w http.ResponseWriter, r *http.Request) {
 
 	if !middleware.AuthorizeNamespace(r, namespaceName) {
 		http.Error(w, "[AUTHORIZATION DENIED]: Token cannot access this namespace", http.StatusForbidden)
+		return
+	}
+
+	if middleware.IsReadOnly(r) {
+		http.Error(w, "[AUTHORIZATION DENIED]: Read-only token cannot perform this operation", http.StatusForbidden)
 		return
 	}
 
@@ -292,6 +325,34 @@ func (h *Handler) RevokeToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Write([]byte("revoked"))
+}
+
+func (h *Handler) CreateSystemToken(w http.ResponseWriter, r *http.Request) {
+	if !middleware.IsRoot(r) {
+		http.Error(w, "[AUTHORIZATION DENIED]: Root Access Required", http.StatusForbidden)
+		return
+	}
+
+	var req struct {
+		Name      string `json:"name"`
+		Namespace string `json:"namespace"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid Request", http.StatusBadRequest)
+		return
+	}
+
+	token, record, err := h.tokenService.CreateSystemToken(req.Name, req.Namespace)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"token":  token,
+		"record": record,
+	})
 }
 
 // NAMESPACE HANDLERS
