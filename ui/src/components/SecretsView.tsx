@@ -2,6 +2,10 @@ import { useState, useEffect, useCallback } from 'react'
 import { Plus, Eye, RotateCcw, History, Trash2, Copy, Check, KeyRound, RefreshCw, Upload } from 'lucide-react'
 import { api, type TokenRecord, type SecretVersion } from '@/lib/api'
 import { toast } from 'sonner'
+import { useTheme } from 'next-themes'
+import CodeMirror from '@uiw/react-codemirror'
+import { json } from '@codemirror/lang-json'
+import { vscodeDark, vscodeLight } from '@uiw/codemirror-theme-vscode'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -38,7 +42,6 @@ interface HistoryModal {
   versions: SecretVersion[]
 }
 
-// Inline copy button — copies text passed as prop
 function CopyButton({ text, className }: { text: string; className?: string }) {
   const [copied, setCopied] = useState(false)
   const copy = () => {
@@ -53,7 +56,6 @@ function CopyButton({ text, className }: { text: string; className?: string }) {
   )
 }
 
-// Fetches a specific version's value on demand then copies it
 function VersionCopyButton({
   token, ns, secretKey, version,
 }: { token: string; ns: string; secretKey: string; version: number }) {
@@ -93,11 +95,32 @@ function fmtDate(iso: string) {
   })
 }
 
+function parseEnvFile(text: string): Record<string, string> {
+  const result: Record<string, string> = {}
+  for (const line of text.split('\n')) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#')) continue
+    const eq = trimmed.indexOf('=')
+    if (eq === -1) continue
+    const key = trimmed.slice(0, eq).trim()
+    if (!key) continue
+    let val = trimmed.slice(eq + 1).trim()
+    if ((val.startsWith('"') && val.endsWith('"')) ||
+        (val.startsWith("'") && val.endsWith("'"))) {
+      val = val.slice(1, -1)
+    }
+    result[key] = val
+  }
+  return result
+}
+
 export function SecretsView({ token, tokenInfo, sealed }: Props) {
   const [namespaces, setNamespaces] = useState<string[]>([])
   const [ns, setNs] = useState('')
   const [keys, setKeys] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
+
+  // Table mode state
   const [addOpen, setAddOpen] = useState(false)
   const [newKey, setNewKey] = useState('')
   const [newVal, setNewVal] = useState('')
@@ -105,13 +128,43 @@ export function SecretsView({ token, tokenInfo, sealed }: Props) {
   const [valueModal, setValueModal] = useState<ValueModal | null>(null)
   const [historyModal, setHistoryModal] = useState<HistoryModal | null>(null)
   const [historyLoading, setHistoryLoading] = useState(false)
+
+  // View mode
+  const [mode, setMode] = useState<'table' | 'json'>('table')
+
+  // JSON editor state
+  const [jsonDraft, setJsonDraft] = useState('')
+  const [jsonLoading, setJsonLoading] = useState(false)
+  const [jsonSaving, setJsonSaving] = useState(false)
+  const [jsonBase, setJsonBase] = useState<Record<string, string>>({})
+  const [pendingDeletes, setPendingDeletes] = useState<string[]>([])
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+
+  // Import state
   const [importOpen, setImportOpen] = useState(false)
   const [importData, setImportData] = useState<Record<string, string> | null>(null)
   const [importNs, setImportNs] = useState('')
   const [importing, setImporting] = useState(false)
   const [importProgress, setImportProgress] = useState({ done: 0, total: 0 })
+  const [pasteContent, setPasteContent] = useState('')
 
+  const { resolvedTheme } = useTheme()
   const isRoot = tokenInfo?.namespace === '*'
+
+  function hasPermission(perm: string): boolean {
+    if (tokenInfo?.read_only) return perm === 'read'
+    if (isRoot) return true
+    if (tokenInfo?.namespaces && tokenInfo.namespaces.length > 0) {
+      const entry = tokenInfo.namespaces.find(np => np.namespace === ns)
+      return entry?.permissions.includes(perm) ?? false
+    }
+    // Legacy single-namespace token: full access to its namespace
+    return tokenInfo?.namespace === ns
+  }
+
+  const canWrite  = hasPermission('write')
+  const canDelete = hasPermission('delete')
+  const canRotate = hasPermission('rotate')
 
   const loadNamespaces = useCallback(async () => {
     if (isRoot) {
@@ -119,12 +172,10 @@ export function SecretsView({ token, tokenInfo, sealed }: Props) {
       setNamespaces(list)
       if (!ns) setNs(list[0] ?? 'default')
     } else if (tokenInfo?.namespaces && tokenInfo.namespaces.length > 0) {
-      // New fine-grained token: namespaces come from the permissions array
       const nsList = tokenInfo.namespaces.map(np => np.namespace)
       setNamespaces(nsList)
       setNs(prev => nsList.includes(prev) ? prev : nsList[0])
     } else {
-      // Legacy token: single namespace field
       const n = tokenInfo?.namespace ?? 'default'
       setNamespaces([n])
       setNs(n)
@@ -139,8 +190,23 @@ export function SecretsView({ token, tokenInfo, sealed }: Props) {
     setLoading(false)
   }, [token, ns])
 
+  const loadJsonMode = useCallback(async () => {
+    if (!ns) return
+    setJsonLoading(true)
+    try {
+      const all = await api.getAllSecrets(token, ns)
+      setJsonBase(all)
+      setJsonDraft(JSON.stringify(all, null, 2))
+    } catch (e) {
+      toast.error('Failed to load secrets', { description: String(e) })
+      setMode('table')
+    }
+    setJsonLoading(false)
+  }, [token, ns])
+
   useEffect(() => { loadNamespaces() }, [loadNamespaces])
   useEffect(() => { if (ns) loadKeys() }, [loadKeys, ns])
+  useEffect(() => { if (mode === 'json') loadJsonMode() }, [mode, loadJsonMode])
 
   async function handleGet(key: string) {
     const r = await api.getSecret(token, ns, key).catch(e => {
@@ -190,25 +256,138 @@ export function SecretsView({ token, tokenInfo, sealed }: Props) {
     setPutting(false)
   }
 
+  async function saveJsonDraft() {
+    let parsed: Record<string, string>
+    try {
+      const raw = JSON.parse(jsonDraft)
+      if (typeof raw !== 'object' || Array.isArray(raw) || raw === null) throw new Error()
+      parsed = raw
+    } catch {
+      toast.error('Invalid JSON', { description: 'Must be a flat key → value object' })
+      return
+    }
+
+    const toUpsert: [string, string][] = []
+    const toDelete: string[] = []
+
+    for (const [k, v] of Object.entries(parsed)) {
+      if (!(k in jsonBase) || jsonBase[k] !== String(v)) {
+        toUpsert.push([k, String(v)])
+      }
+    }
+    for (const k of Object.keys(jsonBase)) {
+      if (!(k in parsed)) toDelete.push(k)
+    }
+
+    if (toUpsert.length === 0 && toDelete.length === 0) {
+      toast.success('No changes to save')
+      return
+    }
+
+    // Apply adds / updates first
+    setJsonSaving(true)
+    const failed: string[] = []
+    for (const [k, v] of toUpsert) {
+      await api.putSecret(token, ns, k, v).catch(() => failed.push(k))
+    }
+    setJsonSaving(false)
+
+    if (failed.length > 0) {
+      toast.error(`${failed.length} save${failed.length !== 1 ? 's' : ''} failed`, { description: failed.join(', ') })
+    }
+
+    if (toDelete.length > 0) {
+      setPendingDeletes(toDelete)
+      setDeleteConfirmOpen(true)
+    } else {
+      const added = toUpsert.filter(([k]) => !(k in jsonBase)).length
+      const updated = toUpsert.filter(([k]) => k in jsonBase).length
+      const parts: string[] = []
+      if (added) parts.push(`${added} added`)
+      if (updated) parts.push(`${updated} updated`)
+      toast.success('Saved — ' + parts.join(', '))
+      loadKeys()
+      loadJsonMode()
+    }
+  }
+
+  async function handleConfirmDeletes() {
+    setDeleteConfirmOpen(false)
+    setJsonSaving(true)
+    for (const k of pendingDeletes) {
+      await api.deleteSecret(token, ns, k).catch(e =>
+        toast.error(`Failed to delete "${k}"`, { description: String(e) })
+      )
+    }
+    setJsonSaving(false)
+    toast.success(`Deleted ${pendingDeletes.length} key${pendingDeletes.length !== 1 ? 's' : ''}`)
+    setPendingDeletes([])
+    loadKeys()
+    loadJsonMode()
+  }
+
+  function handleCancelDeletes() {
+    setDeleteConfirmOpen(false)
+    setPendingDeletes([])
+    toast.success('Saved (keys not deleted)')
+    loadKeys()
+    loadJsonMode()
+  }
+
+  function parseImportText(text: string): Record<string, string> | null {
+    // Try JSON first
+    try {
+      const parsed = JSON.parse(text)
+      if (typeof parsed === 'object' && !Array.isArray(parsed) && parsed !== null) {
+        const data: Record<string, string> = {}
+        for (const [k, v] of Object.entries(parsed)) data[k] = String(v)
+        return data
+      }
+    } catch {}
+    // Try .env
+    const env = parseEnvFile(text)
+    return Object.keys(env).length > 0 ? env : null
+  }
+
   function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
     const reader = new FileReader()
     reader.onload = (ev) => {
+      const text = ev.target?.result as string
+      const name = file.name.toLowerCase()
       try {
-        const parsed = JSON.parse(ev.target?.result as string)
-        if (typeof parsed !== 'object' || Array.isArray(parsed) || parsed === null) {
-          toast.error('Invalid format', { description: 'JSON must be a flat key-value object' })
-          return
+        if (name.endsWith('.json')) {
+          const parsed = JSON.parse(text)
+          if (typeof parsed !== 'object' || Array.isArray(parsed) || parsed === null) {
+            toast.error('Invalid format', { description: 'JSON must be a flat key-value object' })
+            return
+          }
+          const data: Record<string, string> = {}
+          for (const [k, v] of Object.entries(parsed)) data[k] = String(v)
+          setImportData(data)
+        } else {
+          // .env, .txt, or any other format
+          const env = parseEnvFile(text)
+          if (Object.keys(env).length === 0) {
+            toast.error('No secrets found', { description: 'Could not parse any key=value pairs from the file' })
+            return
+          }
+          setImportData(env)
         }
-        const data: Record<string, string> = {}
-        for (const [k, v] of Object.entries(parsed)) data[k] = String(v)
-        setImportData(data)
       } catch {
-        toast.error('Invalid JSON', { description: 'Could not parse the selected file' })
+        toast.error('Could not parse file')
       }
     }
     reader.readAsText(file)
+  }
+
+  function handlePasteChange(text: string) {
+    setPasteContent(text)
+    if (!text.trim()) { setImportData(null); return }
+    const data = parseImportText(text.trim())
+    if (data) setImportData(data)
+    else setImportData(null)
   }
 
   async function handleImport() {
@@ -231,7 +410,15 @@ export function SecretsView({ token, tokenInfo, sealed }: Props) {
     }
     setImportOpen(false)
     setImportData(null)
+    setPasteContent('')
     loadKeys()
+  }
+
+  function closeImportDialog() {
+    setImportOpen(false)
+    setImportData(null)
+    setPasteContent('')
+    setImportProgress({ done: 0, total: 0 })
   }
 
   if (sealed) {
@@ -260,7 +447,7 @@ export function SecretsView({ token, tokenInfo, sealed }: Props) {
           </div>
           <div className="flex items-center gap-2">
             {namespaces.length > 1 && (
-              <Select value={ns} onValueChange={setNs}>
+              <Select value={ns} onValueChange={v => { setNs(v); setMode('table') }}>
                 <SelectTrigger className="h-9 w-44 text-xs">
                   <SelectValue />
                 </SelectTrigger>
@@ -269,151 +456,244 @@ export function SecretsView({ token, tokenInfo, sealed }: Props) {
                 </SelectContent>
               </Select>
             )}
-            <Button size="sm" variant="outline" onClick={() => { setImportNs(namespaces[0] ?? ns); setImportOpen(true) }}>
+
+            {/* View mode toggle */}
+            <div className="flex items-center rounded-md border border-border overflow-hidden">
+              <button
+                className={cn(
+                  'px-3 py-1.5 text-xs font-medium transition-colors',
+                  mode === 'table'
+                    ? 'bg-foreground text-background'
+                    : 'bg-transparent text-muted-foreground hover:text-foreground'
+                )}
+                onClick={() => setMode('table')}
+              >
+                Table
+              </button>
+              <button
+                className={cn(
+                  'px-3 py-1.5 text-xs font-medium transition-colors border-l border-border',
+                  mode === 'json'
+                    ? 'bg-foreground text-background'
+                    : 'bg-transparent text-muted-foreground hover:text-foreground'
+                )}
+                onClick={() => setMode('json')}
+              >
+                JSON
+              </button>
+            </div>
+
+            <Button size="sm" variant="outline" onClick={() => { setImportNs(ns); setImportOpen(true) }} disabled={!canWrite}>
               <Upload className="h-4 w-4" />
-              Import JSON
+              Import
             </Button>
-            <Button size="sm" onClick={() => setAddOpen(true)}>
-              <Plus className="h-4 w-4" />
-              Add secret
-            </Button>
+            {mode === 'table' && (
+              <Button size="sm" onClick={() => setAddOpen(true)} disabled={!canWrite}>
+                <Plus className="h-4 w-4" />
+                Add secret
+              </Button>
+            )}
           </div>
         </div>
 
-        {/* Table */}
-        <div className="rounded-lg border border-border bg-card overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent border-b border-border">
-                <TableHead className="w-[40%] pl-4">Key</TableHead>
-                <TableHead className="w-[30%]">Namespace</TableHead>
-                <TableHead className="text-right pr-4">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading && (
-                <TableRow>
-                  <TableCell colSpan={3} className="text-center text-muted-foreground text-sm py-16">
-                    <RefreshCw className="h-4 w-4 animate-spin mx-auto" />
-                  </TableCell>
+        {/* TABLE MODE */}
+        {mode === 'table' && (
+          <div className="rounded-lg border border-border bg-card overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent border-b border-border">
+                  <TableHead className="w-[40%] pl-4">Key</TableHead>
+                  <TableHead className="w-[30%]">Namespace</TableHead>
+                  <TableHead className="text-right pr-4">Actions</TableHead>
                 </TableRow>
-              )}
-              {!loading && keys.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={3} className="py-20">
-                    <div className="flex flex-col items-center gap-3 text-center">
-                      <div className="rounded-full bg-muted p-3">
-                        <KeyRound className="h-5 w-5 text-muted-foreground" />
+              </TableHeader>
+              <TableBody>
+                {loading && (
+                  <TableRow>
+                    <TableCell colSpan={3} className="text-center text-muted-foreground text-sm py-16">
+                      <RefreshCw className="h-4 w-4 animate-spin mx-auto" />
+                    </TableCell>
+                  </TableRow>
+                )}
+                {!loading && keys.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={3} className="py-20">
+                      <div className="flex flex-col items-center gap-3 text-center">
+                        <div className="rounded-full bg-muted p-3">
+                          <KeyRound className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">No secrets yet</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">Add your first secret to get started</p>
+                        </div>
+                        <Button size="sm" variant="outline" onClick={() => setAddOpen(true)} disabled={!canWrite}>
+                          <Plus className="h-4 w-4" />
+                          Add secret
+                        </Button>
                       </div>
-                      <div>
-                        <p className="text-sm font-medium">No secrets yet</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">Add your first secret to get started</p>
-                      </div>
-                      <Button size="sm" variant="outline" onClick={() => setAddOpen(true)}>
-                        <Plus className="h-4 w-4" />
-                        Add secret
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              )}
-              {keys.map(key => (
-                <TableRow key={key} className="group">
-                  <TableCell className="pl-4">
-                    <span className="font-mono text-sm">{key}</span>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="font-mono text-xs font-normal">
-                      {ns}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="pr-4">
-                    <div className="flex items-center justify-end gap-0.5">
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 opacity-60 group-hover:opacity-100 transition-opacity"
-                            onClick={() => handleGet(key)}
-                          >
-                            <Eye className="h-3.5 w-3.5" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>View value</TooltipContent>
-                      </Tooltip>
-
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 opacity-60 group-hover:opacity-100 transition-opacity"
-                            onClick={() => handleRotate(key)}
-                          >
-                            <RotateCcw className="h-3.5 w-3.5" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Rotate</TooltipContent>
-                      </Tooltip>
-
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 opacity-60 group-hover:opacity-100 transition-opacity"
-                            onClick={() => handleHistory(key)}
-                          >
-                            <History className="h-3.5 w-3.5" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Version history</TooltipContent>
-                      </Tooltip>
-
-                      <Separator orientation="vertical" className="h-4 mx-1" />
-
-                      <AlertDialog>
+                    </TableCell>
+                  </TableRow>
+                )}
+                {keys.map(key => (
+                  <TableRow key={key} className="group">
+                    <TableCell className="pl-4">
+                      <span className="font-mono text-sm">{key}</span>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="font-mono text-xs font-normal">
+                        {ns}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="pr-4">
+                      <div className="flex items-center justify-end gap-0.5">
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <AlertDialogTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 opacity-60 group-hover:opacity-100 transition-opacity hover:text-destructive hover:bg-destructive/10"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </AlertDialogTrigger>
-                          </TooltipTrigger>
-                          <TooltipContent>Delete</TooltipContent>
-                        </Tooltip>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Delete secret</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Delete <code className="font-mono bg-muted px-1.5 py-0.5 rounded text-sm">{key}</code>?
-                              {' '}All versions will be permanently removed.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => handleDelete(key)}
-                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 opacity-60 group-hover:opacity-100 transition-opacity"
+                              onClick={() => handleGet(key)}
                             >
-                              Delete
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                              <Eye className="h-3.5 w-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>View value</TooltipContent>
+                        </Tooltip>
+
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 opacity-60 group-hover:opacity-100 transition-opacity"
+                              onClick={() => handleRotate(key)}
+                              disabled={!canRotate}
+                            >
+                              <RotateCcw className="h-3.5 w-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>{canRotate ? 'Rotate' : 'Requires rotate permission'}</TooltipContent>
+                        </Tooltip>
+
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 opacity-60 group-hover:opacity-100 transition-opacity"
+                              onClick={() => handleHistory(key)}
+                            >
+                              <History className="h-3.5 w-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Version history</TooltipContent>
+                        </Tooltip>
+
+                        <Separator orientation="vertical" className="h-4 mx-1" />
+
+                        <AlertDialog>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 opacity-60 group-hover:opacity-100 transition-opacity hover:text-destructive hover:bg-destructive/10"
+                                  disabled={!canDelete}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </AlertDialogTrigger>
+                            </TooltipTrigger>
+                            <TooltipContent>{canDelete ? 'Delete' : 'Requires delete permission'}</TooltipContent>
+                          </Tooltip>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete secret</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Delete <code className="font-mono bg-muted px-1.5 py-0.5 rounded text-sm">{key}</code>?
+                                {' '}All versions will be permanently removed.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDelete(key)}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+
+        {/* JSON EDITOR MODE */}
+        {mode === 'json' && (
+          <div className="space-y-3">
+            {jsonLoading ? (
+              <div className="flex items-center justify-center rounded-lg border border-border bg-card h-64">
+                <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <>
+                <div className="rounded-lg border border-border overflow-hidden bg-card">
+                  <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/30">
+                    <span className="text-xs text-muted-foreground font-mono">{ns}.json</span>
+                    <div className="flex items-center gap-2">
+                      {!canWrite && (
+                        <Badge variant="outline" className="text-xs font-normal text-muted-foreground">read-only</Badge>
+                      )}
+                      <span className="text-xs text-muted-foreground">
+                        {Object.keys(jsonBase).length} secret{Object.keys(jsonBase).length !== 1 ? 's' : ''}
+                      </span>
+                      <CopyButton text={jsonDraft} />
                     </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+                  </div>
+                  <CodeMirror
+                    value={jsonDraft}
+                    height="420px"
+                    extensions={[json()]}
+                    theme={resolvedTheme === 'dark' ? vscodeDark : vscodeLight}
+                    onChange={value => setJsonDraft(value)}
+                    editable={canWrite}
+                    basicSetup={{
+                      lineNumbers: true,
+                      foldGutter: true,
+                      highlightActiveLine: true,
+                      bracketMatching: true,
+                      autocompletion: canWrite,
+                    }}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-muted-foreground">
+                    {canWrite
+                      ? 'Edit JSON directly. Save applies additions and updates; removed keys prompt for confirmation.'
+                      : 'You have read-only access to this namespace.'}
+                  </p>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={loadJsonMode} disabled={jsonLoading}>
+                      Refresh
+                    </Button>
+                    {(canWrite || canDelete) && (
+                      <Button size="sm" onClick={saveJsonDraft} disabled={jsonSaving}>
+                        {jsonSaving ? 'Saving…' : 'Save'}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
 
         {/* Add secret dialog */}
         <Dialog open={addOpen} onOpenChange={open => { setAddOpen(open); if (!open) { setNewKey(''); setNewVal('') } }}>
@@ -499,12 +779,9 @@ export function SecretsView({ token, tokenInfo, sealed }: Props) {
                       key={v.version}
                       className="flex items-start gap-3 rounded-lg border border-border bg-card p-3"
                     >
-                      {/* Version badge */}
                       <Badge variant="secondary" className="shrink-0 font-mono tabular-nums mt-0.5">
                         v{v.version}
                       </Badge>
-
-                      {/* Timestamps */}
                       <div className="flex-1 min-w-0 space-y-0.5">
                         <div className="text-xs text-muted-foreground">
                           <span className="text-foreground font-medium">Created</span>
@@ -517,8 +794,6 @@ export function SecretsView({ token, tokenInfo, sealed }: Props) {
                           </div>
                         )}
                       </div>
-
-                      {/* Copy value on demand */}
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <span>
@@ -540,31 +815,37 @@ export function SecretsView({ token, tokenInfo, sealed }: Props) {
           </DialogContent>
         </Dialog>
 
-        {/* Import JSON dialog */}
-        <Dialog
-          open={importOpen}
-          onOpenChange={open => {
-            setImportOpen(open)
-            if (!open) { setImportData(null); setImportProgress({ done: 0, total: 0 }) }
-          }}
-        >
+        {/* Import dialog */}
+        <Dialog open={importOpen} onOpenChange={open => { if (!open) closeImportDialog(); else setImportOpen(true) }}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Import secrets from JSON</DialogTitle>
+              <DialogTitle>Import secrets</DialogTitle>
               <DialogDescription>
-                Upload a <span className="font-mono">.json</span> file containing a flat key → value object.
+                Upload a <span className="font-mono">.env</span> or <span className="font-mono">.json</span> file, or paste content below.
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4 py-1">
               {/* File picker */}
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">JSON file</Label>
+                <Label className="text-xs text-muted-foreground">File</Label>
                 <input
                   type="file"
-                  accept=".json,application/json"
+                  accept=".env,.json,.txt,text/plain,application/json"
                   onChange={handleImportFile}
                   className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-md file:border file:border-border file:bg-muted file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-foreground hover:file:bg-accent cursor-pointer"
+                />
+              </div>
+
+              {/* Paste area */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Or paste content</Label>
+                <textarea
+                  className="font-mono text-xs w-full h-24 rounded-md border bg-muted/40 p-2 resize-none focus:outline-none focus:ring-1 focus:ring-ring"
+                  placeholder={"DATABASE_URL=postgres://...\nAPI_KEY=sk-..."}
+                  value={pasteContent}
+                  onChange={e => handlePasteChange(e.target.value)}
+                  spellCheck={false}
                 />
               </div>
 
@@ -612,11 +893,8 @@ export function SecretsView({ token, tokenInfo, sealed }: Props) {
             </div>
 
             <DialogFooter>
-              <Button variant="outline" onClick={() => setImportOpen(false)} disabled={importing}>Cancel</Button>
-              <Button
-                onClick={handleImport}
-                disabled={!importData || importing}
-              >
+              <Button variant="outline" onClick={closeImportDialog} disabled={importing}>Cancel</Button>
+              <Button onClick={handleImport} disabled={!importData || importing}>
                 {importing
                   ? `Importing… ${importProgress.done}/${importProgress.total}`
                   : importData
@@ -626,6 +904,36 @@ export function SecretsView({ token, tokenInfo, sealed }: Props) {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Delete confirmation for JSON save */}
+        <AlertDialog open={deleteConfirmOpen} onOpenChange={open => { if (!open) handleCancelDeletes() }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                Delete {pendingDeletes.length} key{pendingDeletes.length !== 1 ? 's' : ''}?
+              </AlertDialogTitle>
+              <AlertDialogDescription asChild>
+                <div>
+                  <p>The following keys were removed from the JSON and will be permanently deleted:</p>
+                  <div className="mt-2 rounded-lg bg-muted p-2 max-h-32 overflow-y-auto space-y-0.5">
+                    {pendingDeletes.map(k => (
+                      <p key={k} className="font-mono text-xs text-muted-foreground">{k}</p>
+                    ))}
+                  </div>
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={handleCancelDeletes}>Keep keys</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={handleConfirmDeletes}
+              >
+                Delete {pendingDeletes.length} key{pendingDeletes.length !== 1 ? 's' : ''}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </TooltipProvider>
   )

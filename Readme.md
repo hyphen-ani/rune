@@ -10,8 +10,8 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v0.1.0-blue" alt="version"/>
-  <img src="https://img.shields.io/badge/license-MIT-green" alt="license"/>
+  <img src="https://img.shields.io/badge/version-v1.0.0--RC-blue" alt="version"/>
+  <img src="https://img.shields.io/badge/license-Apache%202.0-green" alt="license"/>
   <img src="https://img.shields.io/badge/go-%3E%3D1.21-00ADD8?logo=go" alt="go version"/>
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-blue" alt="platform"/>
 </p>
@@ -54,11 +54,13 @@ It provides AES-256-GCM encrypted storage, a secure seal/unseal lifecycle, names
 | **Argon2id Key Derivation** | Passphrase-based key derivation — resistant to brute-force and GPU attacks |
 | **Seal / Unseal Lifecycle** | Vault starts sealed on every launch; no secrets accessible until explicitly unlocked |
 | **Token Authentication** | All protected endpoints require a valid token; tokens are SHA-256 hashed before storage |
+| **Permission-based Tokens** | Tokens carry per-namespace permissions: `read`, `write`, `delete`, `rotate` |
 | **Namespaces** | Isolate secrets by team, service, or environment with fine-grained token access |
 | **Secret Versioning** | Full history and point-in-time retrieval for every secret |
 | **Secret Rotation** | Rotate secret values on demand; previous versions are preserved |
+| **System Tokens** | Read-only tokens with dual-encrypted sealed access for CI/CD and SDK use |
 | **Web UI** | Built-in React dashboard for managing secrets, tokens, namespaces, and vault stats |
-| **JSON Import** | Bulk-import secrets from a `.json` file directly into any namespace |
+| **JSON / .env Import** | Bulk-import secrets from a `.json` or `.env` file directly into any namespace |
 | **CLI Interface** | Full-featured command-line tool for all vault operations |
 | **Zero External Dependencies** | No cloud services, no agents, no sidecars — just a single binary |
 | **BoltDB Storage** | Embedded key-value store — the same underlying engine powering etcd |
@@ -72,7 +74,7 @@ Rune ships two binaries that work together:
 ```
 ┌──────────────────┐              ┌───────────────────────────┐
 │   rune CLI       │   HTTP API   │       rune-server         │
-│   (client)       │ ───────────► │       :8080               │
+│   (client)       │ ───────────► │       :2710               │
 └──────────────────┘              │                           │
                                   │  ┌─────────────────────┐  │
 ┌──────────────────┐              │  │   AES-256-GCM Vault │  │
@@ -102,7 +104,7 @@ rune --version
 rune-server --version
 ```
 
-> Binary releases for other platforms are available on the [Releases](https://github.com/hyphen-ani/rune/releases) page.
+> Binary releases for other platforms are available on the [Releases](https://github.com/runelock-io/rune/releases) page.
 
 ---
 
@@ -114,47 +116,52 @@ rune-server --version
 rune-server
 ```
 
-On first launch, Rune will prompt you to set a passphrase and generate a root token:
+On first launch, Rune prompts for a passphrase and generates a root token:
 
 ```
-? Set a passphrase: ••••••••••••••
+  Set a passphrase: ••••••••••••••
 
-✓ Vault initialized.
-✓ Root token generated.
-  Root Token (SAVE THIS): rune.xxxxxxxxxxxxxxxxxxxxxxxx
-  Store this token securely. It will not be shown again.
+  ────────────────────────────────────────────────────────────────────────────
+  root token
+  ────────────────────────────────────────────────────────────────────────────
+
+  rnk_92776b83307767ff9d7be381ffae323a07131f98b34e1842fb7f3206771c7b51
+
+  ────────────────────────────────────────────────────────────────────────────
+  shown once  ·  not stored  ·  full vault access
+  ────────────────────────────────────────────────────────────────────────────
 ```
 
-> ⚠️ **Save your root token immediately.** It cannot be recovered after this point.
+> **Save your root token immediately.** It cannot be recovered after this point.
 
 The web UI is available at **[http://localhost:2710/ui/](http://localhost:2710/ui/)** once the server is running.
 
 ---
 
-### Step 2 — Login
+### Step 2 — Unseal the vault
 
-Authenticate the CLI with your root token:
-
-```bash
-rune login <token>
-```
-
-The token is stored locally at `~/.rune/config.json`.
-
----
-
-### Step 3 — Unseal the vault
-
-The vault starts in a **sealed** state on every launch. Unseal it with your passphrase:
+The vault starts **sealed** on every launch. Unseal it with your passphrase:
 
 ```bash
 rune unseal
 ```
 
 ```
-? Enter passphrase: ••••••••••••••
+Enter passphrase: ••••••••••••••
 ✓ Vault unsealed.
 ```
+
+---
+
+### Step 3 — Login
+
+Authenticate the CLI with your root token:
+
+```bash
+rune login rnk_92776b83307767ff9d7be381ffae323a07131f98b34e1842fb7f3206771c7b51
+```
+
+The token is stored locally at `~/.rune/config.json`.
 
 ---
 
@@ -199,25 +206,28 @@ USAGE:
   rune <command> [arguments]
 
 COMMANDS:
-  login <token>               Authenticate with the vault and store token locally
-  unseal                      Unseal the vault using your passphrase
-  seal                        Seal the vault, making all secrets inaccessible
-  status                      Display the current seal status of the vault
-  put <key> <value>           Store a secret (use -n <namespace> to target a namespace)
-  get <key>                   Retrieve a secret (use -n <namespace> for a namespace)
-  list                        List all secrets (use -n <namespace> for a namespace)
-  delete <key>                Delete a secret (use -n <namespace> for a namespace)
-  namespace create <name>     Create a new namespace
-  namespace list              List all namespaces
-  namespace delete <name>     Delete a namespace
-  token create <name>         Create a new token (use --namespace to restrict access)
-  token list                  List all tokens
-  token revoke <id>           Revoke a token by ID
+  login <token>                   Authenticate with the vault and store token locally
+  unseal                          Unseal the vault using your passphrase
+  seal                            Seal the vault, making all secrets inaccessible
+  status                          Display the current seal status of the vault
+  put <key> <value>               Store a secret (use -n <namespace> to target a namespace)
+  get <key>                       Retrieve a secret (use -n <namespace> for a namespace)
+  list                            List all secrets (use -n <namespace> for a namespace)
+  delete <key>                    Delete a secret (use -n <namespace> for a namespace)
+  rotate <key>                    Rotate a secret and preserve the old version
+  history <key>                   Show all versions of a secret
+  namespace create <name>         Create a new namespace
+  namespace list                  List all namespaces
+  namespace delete <name>         Delete a namespace
+  token create <name>             Create a token with per-namespace permission grants
+  token list                      List all tokens
+  token revoke <id>               Revoke a token by ID
+  token create-system <name>      Create a system token (read-only, sealed-access capable)
 
 OPTIONS:
-  -n, --namespace <name>      Target namespace for secret operations
-  --help                      Show help for any command
-  --version                   Print the current version
+  -n, --namespace <name>          Target namespace for secret operations
+  --help                          Show help for any command
+  --version                       Print the current version
 ```
 
 ### Examples
@@ -230,7 +240,7 @@ rune-server
 rune unseal
 
 # Authenticate
-rune login rune.xxxxxxxxxxxxxxxxxxxxxxxx
+rune login rnk_92776b83307767ff9d7be381ffae323a07131f98b34e1842fb7f3206771c7b51
 
 # Secrets — default namespace
 rune put db/password my-secret-password
@@ -247,8 +257,13 @@ rune list -n springboot
 rune delete db/password -n springboot
 rune namespace delete springboot
 
+# Versioning and rotation
+rune history db/password
+rune rotate db/password
+
 # Tokens
 rune token create backend-service --namespace springboot
+rune token create-system ci-reader --namespace springboot
 rune token list
 rune token revoke <token-id>
 
@@ -282,6 +297,7 @@ Authorization: Bearer <your-token>
 | `GET` | `/secret/get` | Retrieve the latest value of a secret |
 | `POST` | `/secret/delete` | Delete a secret |
 | `GET` | `/secret/list` | List secrets in a namespace |
+| `GET` | `/secret/all` | Retrieve all secrets (key + value) in a namespace |
 | `POST` | `/secret/rotate` | Rotate a secret and preserve the old version |
 | `GET` | `/secret/history` | List all versions of a secret |
 | `GET` | `/secret/version` | Retrieve a specific version of a secret |
@@ -299,7 +315,8 @@ Authorization: Bearer <your-token>
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/token/me` | Get info about the current token |
-| `POST` | `/token/create` | Create a new token |
+| `POST` | `/token/create` | Create a token with per-namespace permissions |
+| `POST` | `/token/create-system` | Create a read-only system token |
 | `POST` | `/token/revoke` | Revoke a token |
 | `GET` | `/token/list` | List all tokens (root only) |
 
@@ -331,9 +348,25 @@ curl -X POST http://localhost:2710/secret/put \
 curl "http://localhost:2710/secret/get?namespace=default&key=db/password" \
   -H "Authorization: Bearer <token>"
 
+# Get all secrets in a namespace
+curl "http://localhost:2710/secret/all?namespace=default" \
+  -H "Authorization: Bearer <token>"
+
 # Rotate a secret
 curl -X POST "http://localhost:2710/secret/rotate?namespace=default&key=db/password" \
   -H "Authorization: Bearer <token>"
+
+# Create a token with specific permissions
+curl -X POST http://localhost:2710/token/create \
+  -H "Authorization: Bearer <root-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "backend-service",
+    "namespaces": [
+      {"namespace": "production", "permissions": ["read"]},
+      {"namespace": "staging", "permissions": ["read", "write", "delete", "rotate"]}
+    ]
+  }'
 ```
 
 ---
@@ -372,7 +405,8 @@ Rune's security design prioritizes simplicity and auditability over complexity.
 **Authentication**
 - Tokens are **SHA-256 hashed before storage**. The server never stores raw tokens.
 - All read and write operations on secrets require a valid, authenticated token.
-- Namespace tokens are restricted to their assigned namespace; only the root token (`namespace: *`) has unrestricted access.
+- Tokens carry explicit per-namespace permissions (`read`, `write`, `delete`, `rotate`). Only the root token (`namespace: *`) has unrestricted access.
+- System tokens (`stk_` prefix) use dual-encryption to support sealed-state reads in CI/CD pipelines.
 
 **Threat model:** Rune protects secrets at rest from an attacker with access to the filesystem. It is not designed to protect against a compromised process, root-level access, or memory forensics against a live, unsealed vault.
 
@@ -385,7 +419,9 @@ Rune's security design prioritizes simplicity and auditability over complexity.
 - [x] Secret versioning and history
 - [x] Secret rotation
 - [x] Web UI dashboard
-- [x] JSON bulk import
+- [x] JSON / .env bulk import
+- [x] Permission-based token access control
+- [x] System tokens with sealed-state access
 - [ ] Audit logging with tamper-evident records
 - [ ] TLS support for remote deployments
 - [ ] Role-based access control (RBAC)
@@ -407,8 +443,8 @@ Please open an issue first for significant changes or new features so we can dis
 
 ### Reporting Issues
 
-If you discover a security vulnerability, **do not open a public issue**. Please email [security@runelock.io](mailto:security@runelock.io) instead.
-For bugs and feature requests, use the [GitHub issue tracker](https://github.com/hyphen-ani/rune/issues).
+If you discover a security vulnerability, **do not open a public issue**. Please email [security@runelock.io](mailto:security@runelock.io) instead.  
+For bugs and feature requests, use the [GitHub issue tracker](https://github.com/runelock-io/rune/issues).
 
 ---
 
@@ -420,8 +456,8 @@ Rune exists because most secrets managers either require cloud infrastructure, h
 
 It is built with three principles in mind:
 
-**Minimalism** — every feature must justify its existence. Complexity is a liability.
-**Control** — your secrets run on your infrastructure. Nothing phones home.
+**Minimalism** — every feature must justify its existence. Complexity is a liability.  
+**Control** — your secrets run on your infrastructure. Nothing phones home.  
 **Clarity** — the security model is simple enough to be understood and audited by a single developer.
 
 Rune is inspired by [HashiCorp Vault](https://www.vaultproject.io/) and [AWS Secrets Manager](https://aws.amazon.com/secrets-manager/), but intentionally scoped for local and small-team use cases where those tools are too heavy.
@@ -430,10 +466,11 @@ Rune is inspired by [HashiCorp Vault](https://www.vaultproject.io/) and [AWS Sec
 
 ## License
 
-Rune is released under the [MIT License](./LICENSE).
+Rune is released under the [Apache License 2.0](./LICENSE).
 
 ---
 
 <p align="center">
-  Built with focus on simplicity and real-world usability.
+  Built with focus on simplicity and real-world usability.<br/>
+  If Rune is useful to you, a ★ on <a href="https://github.com/runelock-io/rune">GitHub</a> goes a long way.
 </p>

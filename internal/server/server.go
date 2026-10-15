@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"rune/internal/api"
 	"rune/internal/auth"
 	"rune/internal/config"
@@ -23,13 +24,14 @@ import (
 const port = constants.DefaultPort
 
 const (
-	ansiReset  = "\033[0m"
-	ansiBold   = "\033[1m"
-	ansiDim    = "\033[2m"
-	ansiCyan   = "\033[96m"
-	ansiBlue   = "\033[94m"
-	ansiYellow = "\033[33m"
-	ansiGray   = "\033[90m"
+	ansiReset   = "\033[0m"
+	ansiBold    = "\033[1m"
+	ansiDim     = "\033[2m"
+	ansiCyan    = "\033[96m"
+	ansiBlue    = "\033[94m"
+	ansiYellow  = "\033[33m"
+	ansiGray    = "\033[90m"
+	ansiMagenta = "\033[95m"
 )
 
 func printBanner(dbPath string) {
@@ -94,10 +96,30 @@ func Start() {
 			return
 		}
 
-		fmt.Println("====================================")
-		fmt.Println("Root Token (SAVE THIS):", token)
-		fmt.Println("====================================")
-		fmt.Println("Store this token securely. It will not be shown again.")
+		sep := "  " + strings.Repeat("─", 72)
+		fmt.Println()
+		fmt.Println(sep)
+		fmt.Printf("  %s%sroot token%s\n", ansiBold, ansiYellow, ansiReset)
+		fmt.Println(sep)
+		fmt.Println()
+		fmt.Printf("  %s%s%s%s\n", ansiBold, ansiCyan, token, ansiReset)
+		fmt.Println()
+		fmt.Println(sep)
+		fmt.Printf("  %sshown once  ·  not stored  ·  full vault access%s\n", ansiDim, ansiReset)
+		fmt.Println(sep)
+		fmt.Println()
+
+		fmt.Println()
+		fmt.Printf("  %s%s✦  You're one of the first people to run Rune — thank you!%s\n", ansiBold, ansiMagenta, ansiReset)
+		fmt.Println()
+		fmt.Printf("  %sRune is a passion project built for developers who take%s\n", ansiDim, ansiReset)
+		fmt.Printf("  %ssecrets seriously. Your early trust means everything.%s\n", ansiDim, ansiReset)
+		fmt.Println()
+		fmt.Printf("  %sIf Rune is useful to you, a ★ on GitHub goes a long way%s\n", ansiDim, ansiReset)
+		fmt.Printf("  %sand helps others discover the project.%s\n", ansiDim, ansiReset)
+		fmt.Println()
+		fmt.Printf("  %s→  https://github.com/runelock-io/rune%s\n", ansiCyan, ansiReset)
+		fmt.Println()
 
 	}
 
@@ -135,6 +157,7 @@ func Start() {
 	protected.HandleFunc("/namespace/delete", handler.DeleteNamespace)
 	protected.HandleFunc("/secret/version", handler.GetSecretVersion)
 	protected.HandleFunc("/secret/history", handler.ListSecretVersions)
+	protected.HandleFunc("/secret/all", handler.GetAllSecrets)
 	protected.HandleFunc("/stats", handler.GetStats)
 
 	// APPLY MIDDLEWARE

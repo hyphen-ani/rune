@@ -106,6 +106,10 @@ export const api = {
     fetch(`/secret/version?namespace=${encodeURIComponent(ns)}&key=${encodeURIComponent(key)}&version=${version}`, hdr(token))
       .then(check).then(r => r.json()),
 
+  getAllSecrets: (token: string, ns: string): Promise<Record<string, string>> =>
+    fetch(`/secret/all?namespace=${encodeURIComponent(ns)}`, hdr(token))
+      .then(check).then(r => r.json()),
+
   listNamespaces: (token: string): Promise<string[]> =>
     fetch('/namespace/list', hdr(token)).then(check).then(r => r.json()),
 

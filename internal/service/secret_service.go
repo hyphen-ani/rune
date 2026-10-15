@@ -336,6 +336,41 @@ func (s *SecretService) ListViaSealedSystemToken(tokenID, namespace string) ([]s
 	return s.store.ListSystemSecretKeys(tokenID, ns)
 }
 
+func (s *SecretService) GetAll(namespace string) (map[string]string, error) {
+	if s.sealer.IsSealed() {
+		return nil, errors.New("[OPERATION DENIED]: Vault is Sealed")
+	}
+
+	ns := normalizeNamespace(namespace)
+
+	if !s.store.NamespaceExists(ns) {
+		return nil, errors.New("[OPERATION DENIED]: Namespace does not exist")
+	}
+
+	keys, err := s.ListKeys(ns)
+	if err != nil {
+		return nil, err
+	}
+
+	k := s.sealer.GetKey()
+	result := make(map[string]string, len(keys))
+
+	for _, key := range keys {
+		fullKey := ns + "/" + key
+		record, err := s.store.Get(fullKey)
+		if err != nil {
+			continue
+		}
+		plaintext, err := crypto.Decrypt(k, record.Ciphertext, record.Nonce)
+		if err != nil {
+			continue
+		}
+		result[key] = string(plaintext)
+	}
+
+	return result, nil
+}
+
 func (s *SecretService) ListVersions(namespaceName string, key string) ([]SecretVersion, error) {
 
 	if s.sealer.IsSealed() {

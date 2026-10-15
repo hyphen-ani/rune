@@ -400,6 +400,29 @@ func (c *Client) DeleteNamespace(name string) error {
 	return nil
 }
 
+func (c *Client) GetAll(namespace string) (map[string]string, error) {
+	reqURL := fmt.Sprintf("%s/secret/all?namespace=%s", c.BaseURL, url.QueryEscape(namespace))
+	req, err := http.NewRequest("GET", reqURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("%s", body)
+	}
+	var result map[string]string
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
 // VERSIONING
 func (c *Client) GetVersion(key string, namespace string, version int) (string, error) {
 

@@ -459,6 +459,24 @@ func (h *Handler) GetStats(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(stats)
 }
 
+func (h *Handler) GetAllSecrets(w http.ResponseWriter, r *http.Request) {
+	namespaceName := namespace.Normalize(r.URL.Query().Get("namespace"))
+
+	if !middleware.AuthorizeOperation(r, namespaceName, auth.PermRead) {
+		http.Error(w, "[AUTHORIZATION DENIED]: Token cannot read from this namespace", http.StatusForbidden)
+		return
+	}
+
+	all, err := h.secretService.GetAll(namespaceName)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(all)
+}
+
 // VERSIONING
 
 func (h *Handler) GetSecretVersion(w http.ResponseWriter, r *http.Request) {
