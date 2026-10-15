@@ -2,7 +2,7 @@
 
 set -e
 
-VERSION="v0.4.0"
+VERSION="v1.0.0-RC"
 REPO="https://github.com/runelock-io/rune/releases/download"
 
 OS=$(uname | tr '[:upper:]' '[:lower:]')
@@ -14,8 +14,8 @@ elif [ "$ARCH" = "arm64" ] || [ "$ARCH" = "aarch64" ]; then
     ARCH="arm64"
 fi
 
-RUNE_BINARY="rune-${OS}-${ARCH}"
-SERVER_BINARY="rune-server-${OS}-${ARCH}"
+RUNE_BINARY="rune_${OS}_${ARCH}"
+SERVER_BINARY="rune-server_${OS}_${ARCH}"
 
 TMP_DIR=$(mktemp -d)
 
