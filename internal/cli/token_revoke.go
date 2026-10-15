@@ -18,7 +18,7 @@ var tokenRevokeCmd = &cobra.Command{
 			Error("[AUTHENTICATION FAILED] Please login first using: rune login <token>")
 			return
 		}
-		c := client.New("http://localhost:8080", token)
+		c := client.New(serverURL(), token)
 		err = c.RevokeToken(tokenID)
 		if err != nil {
 			Error(err.Error())

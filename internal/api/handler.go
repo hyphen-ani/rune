@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"rune/internal/auth"
 	"rune/internal/crypto"
 	"rune/internal/middleware"
 	"rune/internal/namespace"
@@ -47,13 +48,8 @@ func (h *Handler) PutSecret(w http.ResponseWriter, r *http.Request) {
 
 	namespaceName := namespace.Normalize(req.Namespace)
 
-	if !middleware.AuthorizeNamespace(r, namespaceName) {
-		http.Error(w, "[AUTHORIZATION DENIED]: Token cannot access this namespace", http.StatusForbidden)
-		return
-	}
-
-	if middleware.IsReadOnly(r) {
-		http.Error(w, "[AUTHORIZATION DENIED]: Read-only token cannot perform this operation", http.StatusForbidden)
+	if !middleware.AuthorizeOperation(r, namespaceName, auth.PermWrite) {
+		http.Error(w, "[AUTHORIZATION DENIED]: Token cannot write to this namespace", http.StatusForbidden)
 		return
 	}
 
@@ -69,8 +65,8 @@ func (h *Handler) GetSecret(w http.ResponseWriter, r *http.Request) {
 	namespaceName := namespace.Normalize(r.URL.Query().Get("namespace"))
 	key := r.URL.Query().Get("key")
 
-	if !middleware.AuthorizeNamespace(r, namespaceName) {
-		http.Error(w, "[AUTHORIZATION DENIED]: Token cannot access this namespace", http.StatusForbidden)
+	if !middleware.AuthorizeOperation(r, namespaceName, auth.PermRead) {
+		http.Error(w, "[AUTHORIZATION DENIED]: Token cannot read from this namespace", http.StatusForbidden)
 		return
 	}
 
@@ -96,8 +92,8 @@ func (h *Handler) GetSecret(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) ListSecrets(w http.ResponseWriter, r *http.Request) {
 	namespaceName := namespace.Normalize(r.URL.Query().Get("namespace"))
 
-	if !middleware.AuthorizeNamespace(r, namespaceName) {
-		http.Error(w, "[AUTHORIZATION DENIED]: Token cannot access this namespace", http.StatusForbidden)
+	if !middleware.AuthorizeOperation(r, namespaceName, auth.PermRead) {
+		http.Error(w, "[AUTHORIZATION DENIED]: Token cannot read from this namespace", http.StatusForbidden)
 		return
 	}
 
@@ -141,16 +137,12 @@ func (h *Handler) DeleteSecret(w http.ResponseWriter, r *http.Request) {
 		)
 		return
 	}
-	if !middleware.AuthorizeNamespace(r, namespace) {
+	if !middleware.AuthorizeOperation(r, namespace, auth.PermDelete) {
 		http.Error(
 			w,
-			"[AUTHORIZATION DENIED]: Token cannot access this namespace",
+			"[AUTHORIZATION DENIED]: Token cannot delete from this namespace",
 			http.StatusForbidden,
 		)
-		return
-	}
-	if middleware.IsReadOnly(r) {
-		http.Error(w, "[AUTHORIZATION DENIED]: Read-only token cannot perform this operation", http.StatusForbidden)
 		return
 	}
 	err := h.secretService.Delete(
@@ -175,13 +167,8 @@ func (h *Handler) RotateSecret(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !middleware.AuthorizeNamespace(r, namespaceName) {
-		http.Error(w, "[AUTHORIZATION DENIED]: Token cannot access this namespace", http.StatusForbidden)
-		return
-	}
-
-	if middleware.IsReadOnly(r) {
-		http.Error(w, "[AUTHORIZATION DENIED]: Read-only token cannot perform this operation", http.StatusForbidden)
+	if !middleware.AuthorizeOperation(r, namespaceName, auth.PermRotate) {
+		http.Error(w, "[AUTHORIZATION DENIED]: Token cannot rotate secrets in this namespace", http.StatusForbidden)
 		return
 	}
 
@@ -241,12 +228,23 @@ func (h *Handler) GetCurrentToken(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	resp := map[string]interface{}{
 		"id":         record.ID,
 		"name":       record.Name,
 		"namespace":  record.Namespace,
 		"created_at": record.CreatedAt,
-	})
+		"revoked":    record.Revoked,
+	}
+	if len(record.Namespaces) > 0 {
+		resp["namespaces"] = record.Namespaces
+	}
+	if record.ReadOnly {
+		resp["read_only"] = true
+	}
+	if record.System {
+		resp["system"] = true
+	}
+	json.NewEncoder(w).Encode(resp)
 }
 
 // TOKEN HANDLERS
@@ -259,8 +257,9 @@ func (h *Handler) CreateToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Name      string `json:"name"`
-		Namespace string `json:"namespace"`
+		Name       string                      `json:"name"`
+		Namespace  string                      `json:"namespace"`            // legacy single-ns
+		Namespaces []auth.NamespacePermission  `json:"namespaces,omitempty"` // new multi-ns
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -268,18 +267,31 @@ func (h *Handler) CreateToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, record, err := h.tokenService.Create(req.Name, req.Namespace)
+	// Backward compat: if old single-namespace format is used, convert to new format with full access.
+	if len(req.Namespaces) == 0 && req.Namespace != "" {
+		req.Namespaces = []auth.NamespacePermission{
+			{
+				Namespace:   req.Namespace,
+				Permissions: []string{auth.PermRead, auth.PermWrite, auth.PermDelete, auth.PermRotate},
+			},
+		}
+	}
+
+	if len(req.Namespaces) == 0 {
+		http.Error(w, "[INVALID REQUEST]: At least one namespace is required", http.StatusBadRequest)
+		return
+	}
+
+	token, record, err := h.tokenService.Create(req.Name, req.Namespaces)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusForbidden)
 		return
 	}
 
-	resp := map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{
 		"token":  token,
 		"record": record,
-	}
-
-	json.NewEncoder(w).Encode(resp)
+	})
 }
 func (h *Handler) ListTokens(w http.ResponseWriter, r *http.Request) {
 
@@ -460,8 +472,8 @@ func (h *Handler) GetSecretVersion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !middleware.AuthorizeNamespace(r, namespaceName) {
-		http.Error(w, "[AUTHORIZATION DENIED]: Token cannot access this namespace", http.StatusForbidden)
+	if !middleware.AuthorizeOperation(r, namespaceName, auth.PermRead) {
+		http.Error(w, "[AUTHORIZATION DENIED]: Token cannot read from this namespace", http.StatusForbidden)
 		return
 	}
 
@@ -478,8 +490,8 @@ func (h *Handler) GetSecretVersion(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) ListSecretVersions(w http.ResponseWriter, r *http.Request) {
 	namespaceName := namespace.Normalize(r.URL.Query().Get("namespace"))
 	key := r.URL.Query().Get("key")
-	if !middleware.AuthorizeNamespace(r, namespaceName) {
-		http.Error(w, "[AUTHORIZATION DENIED]: Token cannot access this namespace", http.StatusForbidden)
+	if !middleware.AuthorizeOperation(r, namespaceName, auth.PermRead) {
+		http.Error(w, "[AUTHORIZATION DENIED]: Token cannot read from this namespace", http.StatusForbidden)
 		return
 	}
 

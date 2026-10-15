@@ -28,7 +28,7 @@ var historyCmd = &cobra.Command{
 		ns := namespace.Normalize(historyNamespace)
 
 		c := client.New(
-			"http://localhost:8080",
+			serverURL(),
 			token,
 		)
 

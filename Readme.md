@@ -127,7 +127,7 @@ On first launch, Rune will prompt you to set a passphrase and generate a root to
 
 > ⚠️ **Save your root token immediately.** It cannot be recovered after this point.
 
-The web UI is available at **[http://localhost:8080/ui/](http://localhost:8080/ui/)** once the server is running.
+The web UI is available at **[http://localhost:2710/ui/](http://localhost:2710/ui/)** once the server is running.
 
 ---
 
@@ -260,7 +260,7 @@ rune seal
 
 ## API Reference
 
-All endpoints listen on `http://localhost:8080`. Protected endpoints require a Bearer token.
+All endpoints listen on `http://localhost:2710`. Protected endpoints require a Bearer token.
 
 ```
 Authorization: Bearer <your-token>
@@ -314,25 +314,25 @@ Authorization: Bearer <your-token>
 
 ```bash
 # Check vault status
-curl http://localhost:8080/status
+curl http://localhost:2710/status
 
 # Unseal
-curl -X POST http://localhost:8080/unseal \
+curl -X POST http://localhost:2710/unseal \
   -H "Content-Type: application/json" \
   -d '{"passphrase": "your-passphrase"}'
 
 # Store a secret
-curl -X POST http://localhost:8080/secret/put \
+curl -X POST http://localhost:2710/secret/put \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"namespace": "default", "key": "db/password", "value": "my-secret"}'
 
 # Retrieve a secret
-curl "http://localhost:8080/secret/get?namespace=default&key=db/password" \
+curl "http://localhost:2710/secret/get?namespace=default&key=db/password" \
   -H "Authorization: Bearer <token>"
 
 # Rotate a secret
-curl -X POST "http://localhost:8080/secret/rotate?namespace=default&key=db/password" \
+curl -X POST "http://localhost:2710/secret/rotate?namespace=default&key=db/password" \
   -H "Authorization: Bearer <token>"
 ```
 

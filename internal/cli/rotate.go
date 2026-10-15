@@ -24,7 +24,7 @@ var rotateCmd = &cobra.Command{
 		}
 
 		ns := namespace.Normalize(rotateNamespace)
-		c := client.New("http://localhost:8080", token)
+		c := client.New(serverURL(), token)
 
 		value, err := c.Rotate(args[0], ns)
 		if err != nil {

@@ -20,7 +20,7 @@ var namespaceListCmd = &cobra.Command{
 			return
 		}
 
-		c := client.New("http://localhost:8080", token)
+		c := client.New(serverURL(), token)
 
 		namespaces, err := c.ListNamespace()
 		if err != nil {

@@ -118,7 +118,13 @@ export function SecretsView({ token, tokenInfo, sealed }: Props) {
       const list = await api.listNamespaces(token).catch(() => ['default'])
       setNamespaces(list)
       if (!ns) setNs(list[0] ?? 'default')
+    } else if (tokenInfo?.namespaces && tokenInfo.namespaces.length > 0) {
+      // New fine-grained token: namespaces come from the permissions array
+      const nsList = tokenInfo.namespaces.map(np => np.namespace)
+      setNamespaces(nsList)
+      setNs(prev => nsList.includes(prev) ? prev : nsList[0])
     } else {
+      // Legacy token: single namespace field
       const n = tokenInfo?.namespace ?? 'default'
       setNamespaces([n])
       setNs(n)

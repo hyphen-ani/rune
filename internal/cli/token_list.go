@@ -20,7 +20,7 @@ var tokenListCmd = &cobra.Command{
 			return
 		}
 
-		c := client.New("http://localhost:8080", token)
+		c := client.New(serverURL(), token)
 
 		tokens, err := c.ListTokens()
 		if err != nil {

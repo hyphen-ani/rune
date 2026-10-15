@@ -30,7 +30,7 @@ var systemTokenCreateCmd = &cobra.Command{
 			name = "system-default"
 		}
 
-		c := client.New("http://localhost:8080", token)
+		c := client.New(serverURL(), token)
 		newToken, record, err := c.CreateSystemToken(name, sysTokenNamespace)
 		if err != nil {
 			Error(err.Error())

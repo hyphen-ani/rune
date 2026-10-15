@@ -22,7 +22,7 @@ var namespaceCreateCmd = &cobra.Command{
 			return
 		}
 
-		c := client.New("http://localhost:8080", token)
+		c := client.New(serverURL(), token)
 
 		err = c.CreateNamespace(name)
 		if err != nil {

@@ -14,12 +14,12 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '/secret':    'http://localhost:8080',
-      '/token':     'http://localhost:8080',
-      '/namespace': 'http://localhost:8080',
-      '/unseal':    'http://localhost:8080',
-      '/status':    'http://localhost:8080',
-      '/seal':      'http://localhost:8080',
+      '/secret':    'http://localhost:2710',
+      '/token':     'http://localhost:2710',
+      '/namespace': 'http://localhost:2710',
+      '/unseal':    'http://localhost:2710',
+      '/status':    'http://localhost:2710',
+      '/seal':      'http://localhost:2710',
     },
   },
 })

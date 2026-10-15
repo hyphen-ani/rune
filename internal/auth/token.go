@@ -7,16 +7,35 @@ import (
 	"fmt"
 )
 
+const (
+	PermRead   = "read"
+	PermWrite  = "write"
+	PermDelete = "delete"
+	PermRotate = "rotate"
+)
+
+// ValidPermissions is the set of recognised permission strings.
+var ValidPermissions = map[string]bool{
+	PermRead: true, PermWrite: true, PermDelete: true, PermRotate: true,
+}
+
+// NamespacePermission pairs a namespace with the operations the token may perform there.
+type NamespacePermission struct {
+	Namespace   string   `json:"namespace"`
+	Permissions []string `json:"permissions"`
+}
+
 type TokenRecord struct {
-	ID        string `json:"id"`
-	Hash      string `json:"hash"`
-	Name      string `json:"name"`
-	Namespace string `json:"namespace"`
-	CreatedAt string `json:"created_at"`
-	Revoked   bool   `json:"revoked"`
-	ReadOnly  bool   `json:"read_only,omitempty"`
-	System    bool   `json:"system,omitempty"`
-	EncSysKey string `json:"enc_sys_key,omitempty"` // sysKey encrypted under vault key; only set for system tokens
+	ID         string                `json:"id"`
+	Hash       string                `json:"hash"`
+	Name       string                `json:"name"`
+	Namespace  string                `json:"namespace"`           // legacy single-ns field; still used by system tokens for internal lookups
+	Namespaces []NamespacePermission `json:"namespaces,omitempty"` // fine-grained multi-ns permissions (new tokens)
+	CreatedAt  string                `json:"created_at"`
+	Revoked    bool                  `json:"revoked"`
+	ReadOnly   bool                  `json:"read_only,omitempty"`
+	System     bool                  `json:"system,omitempty"`
+	EncSysKey  string                `json:"enc_sys_key,omitempty"`
 }
 
 func GenerateToken() (string, string) {

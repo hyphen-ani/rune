@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Trash2, Lock, Copy, Check, KeySquare, Bot } from 'lucide-react'
-import { api, type TokenRecord } from '@/lib/api'
+import { Plus, Trash2, Lock, Copy, Check, KeySquare, Bot, X, ShieldCheck } from 'lucide-react'
+import { api, type TokenRecord, type NamespacePermission, ALL_PERMS } from '@/lib/api'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -9,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
@@ -19,6 +21,22 @@ interface Props {
   token: string
   tokenInfo: TokenRecord | null
 }
+
+const PERM_LABEL: Record<string, string> = {
+  read: 'Read', write: 'Write', delete: 'Delete', rotate: 'Rotate',
+}
+
+// Pastel chips: solid light background + dark saturated text for clear contrast
+const PERM_CHIP: Record<string, string> = {
+  read:   'bg-sky-100 text-sky-800 border-sky-200',
+  write:  'bg-emerald-100 text-emerald-800 border-emerald-200',
+  delete: 'bg-rose-100 text-rose-800 border-rose-200',
+  rotate: 'bg-amber-100 text-amber-800 border-amber-200',
+}
+
+const PERM_INACTIVE = 'bg-transparent text-muted-foreground/60 border-border hover:border-muted-foreground/60 hover:text-muted-foreground'
+
+// ─── Small helpers ────────────────────────────────────────────────────────────
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false)
@@ -35,6 +53,164 @@ function CopyButton({ text }: { text: string }) {
   )
 }
 
+function PermChip({ perm, size = 'sm' }: { perm: string; size?: 'xs' | 'sm' }) {
+  return (
+    <span className={cn(
+      'inline-flex items-center font-medium rounded-full border',
+      size === 'xs' ? 'text-[10px] px-1.5 py-px' : 'text-xs px-2 py-0.5',
+      PERM_CHIP[perm],
+    )}>
+      {PERM_LABEL[perm]}
+    </span>
+  )
+}
+
+// ─── Access column cell ───────────────────────────────────────────────────────
+
+function AccessCell({ token: t }: { token: TokenRecord }) {
+  if (t.namespace === '*') {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border bg-violet-100 text-violet-800 border-violet-200">
+        <ShieldCheck className="h-3 w-3" />
+        root
+      </span>
+    )
+  }
+
+  const rows: NamespacePermission[] = t.namespaces && t.namespaces.length > 0
+    ? t.namespaces
+    : [{ namespace: t.namespace || '—', permissions: t.read_only ? ['read'] : ['read', 'write', 'delete', 'rotate'] }]
+
+  // Single namespace — show inline
+  if (rows.length === 1) {
+    return (
+      <div className="flex flex-col gap-1.5">
+        <span className="font-mono text-xs font-medium text-foreground">{rows[0].namespace}</span>
+        <div className="flex flex-wrap gap-1">
+          {rows[0].permissions.map(p => <PermChip key={p} perm={p} size="xs" />)}
+        </div>
+      </div>
+    )
+  }
+
+  // Multi-namespace — namespace pills with tooltip showing perms
+  return (
+    <TooltipProvider>
+      <div className="flex flex-col gap-1.5">
+        {rows.map(r => (
+          <Tooltip key={r.namespace}>
+            <TooltipTrigger asChild>
+              <div className="flex items-center gap-1.5 cursor-default w-fit">
+                <span className="font-mono text-xs font-medium text-foreground">{r.namespace}</span>
+                <div className="flex flex-wrap gap-1">
+                  {r.permissions.map(p => <PermChip key={p} perm={p} size="xs" />)}
+                </div>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="right" className="text-xs font-mono">{r.namespace}</TooltipContent>
+          </Tooltip>
+        ))}
+      </div>
+    </TooltipProvider>
+  )
+}
+
+// ─── Namespace-permission row in dialog ───────────────────────────────────────
+
+type NsEntry = { namespace: string; perms: Set<string> }
+
+function makeEntry(ns: string): NsEntry {
+  return { namespace: ns, perms: new Set<string>(['read']) }
+}
+
+interface NsRowProps {
+  index: number
+  ns: string
+  perms: Set<string>
+  namespaces: string[]
+  usedNamespaces: string[]
+  onChange: (index: number, ns: string, perms: Set<string>) => void
+  onRemove: (index: number) => void
+  canRemove: boolean
+}
+
+function NsPermRow({ index, ns, perms, namespaces, usedNamespaces, onChange, onRemove, canRemove }: NsRowProps) {
+  const available = namespaces.filter(n => n === ns || !usedNamespaces.includes(n))
+  const allSelected = ALL_PERMS.every(p => perms.has(p))
+
+  function toggle(perm: string) {
+    const next = new Set(perms)
+    next.has(perm) ? next.delete(perm) : next.add(perm)
+    onChange(index, ns, next)
+  }
+
+  function toggleAll() {
+    onChange(index, ns, allSelected ? new Set() : new Set(ALL_PERMS))
+  }
+
+  return (
+    <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+      {/* Row header: namespace select + all/none + remove */}
+      <div className="flex items-center gap-2">
+        <Select value={ns} onValueChange={v => onChange(index, v, perms)}>
+          <SelectTrigger className="font-mono text-xs h-8 flex-1">
+            <SelectValue placeholder="Select namespace…" />
+          </SelectTrigger>
+          <SelectContent>
+            {available.map(n => (
+              <SelectItem key={n} value={n} className="font-mono text-xs">{n}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <button
+          type="button"
+          onClick={toggleAll}
+          className="text-[11px] text-muted-foreground hover:text-foreground transition-colors shrink-0 underline-offset-2 hover:underline"
+        >
+          {allSelected ? 'None' : 'All'}
+        </button>
+
+        {canRemove && (
+          <Button
+            variant="ghost" size="icon"
+            className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+            onClick={() => onRemove(index)}
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        )}
+      </div>
+
+      {/* Permission toggle pills */}
+      <div className="flex flex-wrap gap-2">
+        {ALL_PERMS.map(p => {
+          const active = perms.has(p)
+          return (
+            <button
+              key={p}
+              type="button"
+              onClick={() => toggle(p)}
+              className={cn(
+                'text-xs font-medium px-3 py-1 rounded-full border transition-all duration-150 select-none',
+                active ? PERM_CHIP[p] : PERM_INACTIVE,
+              )}
+            >
+              {PERM_LABEL[p]}
+            </button>
+          )
+        })}
+      </div>
+
+      {perms.size === 0 && (
+        <p className="text-[11px] text-destructive/80">Select at least one permission</p>
+      )}
+    </div>
+  )
+}
+
+// ─── Main view ────────────────────────────────────────────────────────────────
+
 export function TokensView({ token, tokenInfo }: Props) {
   const [tokens, setTokens] = useState<TokenRecord[]>([])
   const [namespaces, setNamespaces] = useState<string[]>([])
@@ -42,7 +218,7 @@ export function TokensView({ token, tokenInfo }: Props) {
   // Regular token dialog
   const [addOpen, setAddOpen] = useState(false)
   const [newName, setNewName] = useState('')
-  const [newNs, setNewNs] = useState('')
+  const [nsEntries, setNsEntries] = useState<NsEntry[]>([])
   const [creating, setCreating] = useState(false)
 
   // System token dialog
@@ -51,7 +227,7 @@ export function TokensView({ token, tokenInfo }: Props) {
   const [sysNewNs, setSysNewNs] = useState('')
   const [sysCreating, setSysCreating] = useState(false)
 
-  // Reveal modal — shared between regular and system token creation
+  // Reveal modal — shared
   const [revealedToken, setRevealedToken] = useState<string | null>(null)
   const [revealedIsSystem, setRevealedIsSystem] = useState(false)
 
@@ -61,7 +237,7 @@ export function TokensView({ token, tokenInfo }: Props) {
     const list = await api.listNamespaces(token).catch(() => [])
     const ns = Array.isArray(list) ? list : []
     setNamespaces(ns)
-    setNewNs(prev => prev || ns[0] || '')
+    setNsEntries([makeEntry(ns[0] ?? '')])
     setSysNewNs(prev => prev || ns[0] || '')
   }, [token])
 
@@ -85,17 +261,42 @@ export function TokensView({ token, tokenInfo }: Props) {
     )
   }
 
+  function resetAddDialog() {
+    setNewName('')
+    setNsEntries([makeEntry(namespaces[0] ?? '')])
+  }
+
+  function updateEntry(index: number, ns: string, perms: Set<string>) {
+    setNsEntries(prev => prev.map((e, i) => i === index ? { namespace: ns, perms } : e))
+  }
+
+  function removeEntry(index: number) {
+    setNsEntries(prev => prev.filter((_, i) => i !== index))
+  }
+
+  function addEntry() {
+    const used = nsEntries.map(e => e.namespace)
+    const next = namespaces.find(n => !used.includes(n)) ?? ''
+    setNsEntries(prev => [...prev, makeEntry(next)])
+  }
+
+  const isCreateValid =
+    newName.trim() !== '' &&
+    nsEntries.length > 0 &&
+    nsEntries.every(e => e.namespace !== '' && e.perms.size > 0)
+
   async function handleCreate() {
-    const name = newName.trim()
-    const ns = newNs.trim()
-    if (!name || !ns) return
+    if (!isCreateValid) return
     setCreating(true)
-    await api.createToken(token, name, ns)
+    const nps: NamespacePermission[] = nsEntries.map(e => ({
+      namespace: e.namespace,
+      permissions: Array.from(e.perms),
+    }))
+    await api.createToken(token, newName.trim(), nps)
       .then(r => {
         setRevealedToken(r.token)
         setRevealedIsSystem(false)
-        setNewName('')
-        setNewNs(namespaces[0] ?? '')
+        resetAddDialog()
         setAddOpen(false)
         load()
       })
@@ -123,13 +324,16 @@ export function TokensView({ token, tokenInfo }: Props) {
 
   async function handleRevoke(id: string) {
     await api.revokeToken(token, id)
-      .then(() => { toast.success(`Revoked ${id}`); load() })
+      .then(() => { toast.success('Token revoked'); load() })
       .catch(e => toast.error('Revoke failed', { description: String(e) }))
   }
 
   function fmt(date: string) {
     return new Date(date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
   }
+
+  const usedNamespaces = nsEntries.map(e => e.namespace)
+  const canAddMore = nsEntries.length < namespaces.length
 
   return (
     <div className="p-6 space-y-6">
@@ -158,12 +362,12 @@ export function TokensView({ token, tokenInfo }: Props) {
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
-              <TableHead>Name</TableHead>
-              <TableHead>Namespace</TableHead>
+              <TableHead className="pl-4">Name</TableHead>
+              <TableHead>Access</TableHead>
               <TableHead>Type</TableHead>
               <TableHead>Created</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead className="w-16 text-right">Actions</TableHead>
+              <TableHead className="w-14 text-right pr-4">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -176,7 +380,7 @@ export function TokensView({ token, tokenInfo }: Props) {
                     </div>
                     <div>
                       <p className="text-sm font-medium">No tokens yet</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">Create tokens to grant scoped access to namespaces</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Create tokens to grant scoped namespace access</p>
                     </div>
                     <Button size="sm" variant="outline" onClick={() => setAddOpen(true)}>
                       <Plus className="h-4 w-4" />
@@ -187,36 +391,32 @@ export function TokensView({ token, tokenInfo }: Props) {
               </TableRow>
             )}
             {tokens.map(t => (
-              <TableRow key={t.id}>
-                <TableCell className="text-sm font-medium">{t.name}</TableCell>
-                <TableCell>
-                  <Badge variant="outline" className="font-mono text-xs">
-                    {t.namespace === '*' ? 'root' : t.namespace}
-                  </Badge>
-                </TableCell>
-                <TableCell>
+              <TableRow key={t.id} className="align-top">
+                <TableCell className="pl-4 pt-3.5 font-medium text-sm">{t.name}</TableCell>
+                <TableCell className="pt-3"><AccessCell token={t} /></TableCell>
+                <TableCell className="pt-3.5">
                   {t.system ? (
-                    <Badge variant="secondary" className="text-xs gap-1 text-sky-400 border-sky-400/30 bg-sky-400/10">
+                    <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border bg-sky-100 text-sky-800 border-sky-200">
                       <Bot className="h-3 w-3" />
                       system
-                    </Badge>
+                    </span>
                   ) : (
-                    <Badge variant="outline" className="text-xs text-muted-foreground">
+                    <span className="inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full border border-border text-muted-foreground">
                       regular
-                    </Badge>
+                    </span>
                   )}
                 </TableCell>
-                <TableCell className="text-sm text-muted-foreground">{fmt(t.created_at)}</TableCell>
-                <TableCell>
+                <TableCell className="pt-3.5 text-sm text-muted-foreground">{fmt(t.created_at)}</TableCell>
+                <TableCell className="pt-3.5">
                   <Badge variant={t.revoked ? 'destructive' : 'secondary'} className="text-xs">
                     {t.revoked ? 'revoked' : 'active'}
                   </Badge>
                 </TableCell>
-                <TableCell className="text-right">
+                <TableCell className="pt-2.5 text-right pr-4">
                   {!t.revoked && t.id !== 'root' && (
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10">
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </AlertDialogTrigger>
@@ -224,12 +424,17 @@ export function TokensView({ token, tokenInfo }: Props) {
                         <AlertDialogHeader>
                           <AlertDialogTitle>Revoke token</AlertDialogTitle>
                           <AlertDialogDescription>
-                            Revoke token <span className="font-medium">{t.name}</span>? It will immediately lose access.
+                            Revoke <span className="font-semibold">{t.name}</span>? It will immediately lose all access and cannot be undone.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => handleRevoke(t.id)}>Revoke</AlertDialogAction>
+                          <AlertDialogAction
+                            onClick={() => handleRevoke(t.id)}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            Revoke
+                          </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>
@@ -241,79 +446,123 @@ export function TokensView({ token, tokenInfo }: Props) {
         </Table>
       </div>
 
-      {/* Add token dialog */}
-      <Dialog open={addOpen} onOpenChange={open => { setAddOpen(open); if (!open) { setNewName(''); setNewNs(namespaces[0] ?? '') } }}>
-        <DialogContent className="sm:max-w-md">
+      {/* ── Add token dialog ── */}
+      <Dialog open={addOpen} onOpenChange={open => { setAddOpen(open); if (!open) resetAddDialog() }}>
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle>Add Token</DialogTitle>
+            <DialogTitle>Create Token</DialogTitle>
             <DialogDescription>
-              Create a token with scoped access to a namespace.
+              Name the token and choose which namespaces it can access. Click a permission to toggle it.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+
+          <div className="space-y-5 py-1">
+            {/* Token name */}
             <div className="space-y-1.5">
-              <Label htmlFor="token-name">Name</Label>
+              <Label htmlFor="token-name" className="text-sm">Token name</Label>
               <Input
                 id="token-name"
-                placeholder="e.g. ci-deploy"
+                placeholder="e.g. ci-deploy, staging-reader…"
                 value={newName}
                 onChange={e => setNewName(e.target.value)}
-                className="text-sm"
                 autoFocus
               />
             </div>
-            <div className="space-y-1.5">
-              <Label>Namespace</Label>
-              <Select value={newNs} onValueChange={setNewNs}>
-                <SelectTrigger className="font-mono text-sm">
-                  <SelectValue placeholder="Select a namespace" />
-                </SelectTrigger>
-                <SelectContent>
-                  {namespaces.map(ns => (
-                    <SelectItem key={ns} value={ns} className="font-mono text-xs">{ns}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+
+            {/* Namespace rows */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm">Namespace access</Label>
+                <span className="text-xs text-muted-foreground">
+                  {nsEntries.length} namespace{nsEntries.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                {nsEntries.map((entry, i) => (
+                  <NsPermRow
+                    key={i}
+                    index={i}
+                    ns={entry.namespace}
+                    perms={entry.perms}
+                    namespaces={namespaces}
+                    usedNamespaces={usedNamespaces.filter((_, idx) => idx !== i)}
+                    onChange={updateEntry}
+                    onRemove={removeEntry}
+                    canRemove={nsEntries.length > 1}
+                  />
+                ))}
+              </div>
+
+              {canAddMore && (
+                <button
+                  type="button"
+                  onClick={addEntry}
+                  className="w-full rounded-lg border border-dashed border-border py-2.5 text-xs text-muted-foreground hover:border-muted-foreground/60 hover:text-foreground transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Add another namespace
+                </button>
+              )}
             </div>
+
+            {/* Live access summary */}
+            {isCreateValid && (
+              <div className="rounded-lg bg-muted/50 border border-border px-3.5 py-3 space-y-2">
+                <p className="text-xs text-muted-foreground font-medium">Access summary</p>
+                {nsEntries.map(e => (
+                  <div key={e.namespace} className="flex items-center gap-2 flex-wrap">
+                    <span className="font-mono text-xs text-foreground">{e.namespace}</span>
+                    <span className="text-muted-foreground/40">→</span>
+                    {Array.from(e.perms).map(p => <PermChip key={p} perm={p} size="xs" />)}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
-            <Button onClick={handleCreate} disabled={!newName.trim() || !newNs.trim() || creating}>
+            <Button onClick={handleCreate} disabled={!isCreateValid || creating}>
               {creating ? 'Creating…' : 'Create Token'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Add system token dialog */}
-      <Dialog open={sysAddOpen} onOpenChange={open => { setSysAddOpen(open); if (!open) { setSysNewName(''); setSysNewNs(namespaces[0] ?? '') } }}>
+      {/* ── Add system token dialog ── */}
+      <Dialog open={sysAddOpen} onOpenChange={open => {
+        setSysAddOpen(open)
+        if (!open) { setSysNewName(''); setSysNewNs(namespaces[0] ?? '') }
+      }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Bot className="h-4 w-4 text-sky-400" />
-              Add System Token
+              Create System Token
             </DialogTitle>
             <DialogDescription>
-              Read-only SDK token. Can read secrets even when the vault is sealed. Use with the Rune Spring Boot starter or other SDKs.
+              Read-only SDK token with sealed-vault access. Used by SDKs to read secrets even when the vault is locked.
             </DialogDescription>
           </DialogHeader>
+
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
               <Label htmlFor="sys-token-name">Name</Label>
               <Input
                 id="sys-token-name"
-                placeholder="e.g. spring-prod"
+                placeholder="e.g. spring-prod, node-worker…"
                 value={sysNewName}
                 onChange={e => setSysNewName(e.target.value)}
-                className="text-sm"
                 autoFocus
               />
             </div>
+
             <div className="space-y-1.5">
               <Label>Namespace</Label>
               <Select value={sysNewNs} onValueChange={setSysNewNs}>
                 <SelectTrigger className="font-mono text-sm">
-                  <SelectValue placeholder="Select a namespace" />
+                  <SelectValue placeholder="Select namespace…" />
                 </SelectTrigger>
                 <SelectContent>
                   {namespaces.map(ns => (
@@ -322,34 +571,44 @@ export function TokensView({ token, tokenInfo }: Props) {
                 </SelectContent>
               </Select>
             </div>
-            <p className="text-xs text-muted-foreground rounded-md bg-muted px-3 py-2">
-              This token is <span className="font-medium">read-only</span> — it cannot write, delete, or rotate secrets.
-            </p>
+
+            <div className="rounded-lg bg-sky-500/10 border border-sky-500/20 px-3.5 py-3 space-y-1">
+              <p className="text-xs font-medium text-sky-300">Read-only · Sealed-vault access</p>
+              <p className="text-xs text-muted-foreground">
+                This token can only read secrets. It uses dual encryption so it works even when the vault passphrase is not loaded.
+              </p>
+            </div>
           </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setSysAddOpen(false)}>Cancel</Button>
-            <Button onClick={handleCreateSystem} disabled={!sysNewName.trim() || !sysNewNs.trim() || sysCreating}>
+            <Button
+              onClick={handleCreateSystem}
+              disabled={!sysNewName.trim() || !sysNewNs.trim() || sysCreating}
+            >
               {sysCreating ? 'Creating…' : 'Create System Token'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Token reveal modal (one-time) — shared for both token types */}
+      {/* ── Token reveal modal ── */}
       <Dialog open={!!revealedToken} onOpenChange={open => !open && setRevealedToken(null)}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{revealedIsSystem ? 'System token created' : 'Token created'}</DialogTitle>
             <DialogDescription>
               {revealedIsSystem
-                ? 'Copy this token and set it as RUNE_SYSTEM_TOKEN in your SDK config. It will not be shown again.'
-                : 'Copy this token now — it will not be shown again.'}
+                ? 'Set this as RUNE_SYSTEM_TOKEN in your SDK config. It will not be shown again.'
+                : 'Save this token somewhere safe — it will not be shown again.'}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <code className="block font-mono text-xs bg-muted rounded p-3 break-all">
-              {revealedToken}
-            </code>
+            <div className="rounded-lg bg-muted border border-border p-3">
+              <code className="block font-mono text-xs break-all leading-relaxed select-all">
+                {revealedToken}
+              </code>
+            </div>
             <CopyButton text={revealedToken ?? ''} />
           </div>
         </DialogContent>

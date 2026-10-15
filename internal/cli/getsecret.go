@@ -21,7 +21,7 @@ var getCmd = &cobra.Command{
 			Error("[AUTHENTICATION FAILED] Please login first using: rune login <token>")
 			return
 		}
-		c := client.New("http://localhost:8080", token)
+		c := client.New(serverURL(), token)
 		ns := normalizeNamespace(namespaceName)
 
 		var val string

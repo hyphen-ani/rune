@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"rune/internal/constants"
 
 	"github.com/spf13/cobra"
 )
@@ -101,6 +102,10 @@ func printRow(name, desc string) {
 
 func init() {
 	rootCmd.Flags().BoolVarP(&showVersion, "version", "v", false, "Print version")
+}
+
+func serverURL() string {
+	return "http://localhost:" + constants.DefaultPort
 }
 
 func Execute() {

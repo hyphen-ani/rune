@@ -19,15 +19,24 @@ export interface VaultStats {
   tokens_by_month: MonthCount[]
 }
 
+export interface NamespacePermission {
+  namespace: string
+  permissions: string[]
+}
+
 export interface TokenRecord {
   id: string
   name: string
-  namespace: string
+  namespace: string                      // legacy field; present on root and system tokens
+  namespaces?: NamespacePermission[]     // fine-grained multi-ns permissions (new tokens)
   created_at: string
   revoked: boolean
   system?: boolean
   read_only?: boolean
 }
+
+export const ALL_PERMS = ['read', 'write', 'delete', 'rotate'] as const
+export type Permission = typeof ALL_PERMS[number]
 
 export interface SecretVersion {
   version: number
@@ -115,10 +124,10 @@ export const api = {
   listTokens: (token: string): Promise<TokenRecord[]> =>
     fetch('/token/list', hdr(token)).then(check).then(r => r.json()),
 
-  createToken: (token: string, name: string, namespace: string): Promise<{ token: string; record: TokenRecord }> =>
+  createToken: (token: string, name: string, namespaces: NamespacePermission[]): Promise<{ token: string; record: TokenRecord }> =>
     fetch('/token/create', {
       method: 'POST', ...hdr(token),
-      body: JSON.stringify({ name, namespace }),
+      body: JSON.stringify({ name, namespaces }),
     }).then(check).then(r => r.json()),
 
   createSystemToken: (token: string, name: string, namespace: string): Promise<{ token: string; record: TokenRecord }> =>

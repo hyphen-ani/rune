@@ -19,7 +19,7 @@ var listCmd = &cobra.Command{
 			return
 		}
 
-		c := client.New("http://localhost:8080", token)
+		c := client.New(serverURL(), token)
 		ns := normalizeNamespace(namespaceName)
 		keys, err := c.List(ns)
 		if err != nil {

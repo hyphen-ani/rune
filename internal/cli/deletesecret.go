@@ -33,7 +33,7 @@ var deleteCmd = &cobra.Command{
 			return
 		}
 
-		c := client.New("http://localhost:8080", token)
+		c := client.New(serverURL(), token)
 
 		err = c.Delete(key, ns)
 		if err != nil {

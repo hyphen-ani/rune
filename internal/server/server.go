@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"rune/internal/api"
 	"rune/internal/auth"
 	"rune/internal/config"
@@ -15,9 +16,11 @@ import (
 	"rune/internal/storage"
 	"rune/internal/ui"
 	"time"
+
+	"golang.org/x/term"
 )
 
-const port = "8080"
+const port = constants.DefaultPort
 
 const (
 	ansiReset  = "\033[0m"
@@ -60,9 +63,13 @@ func Start() {
 		salt, _ = crypto.GenerateSalt()
 		store.SaveSalt(salt)
 
-		var passphrase string
 		fmt.Print("Set A Passphrase (Required For Sealing and Unsealing): ")
-		fmt.Scanln(&passphrase)
+		passphraseBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
+		fmt.Println()
+		if err != nil {
+			log.Fatal("Failed to read passphrase: ", err)
+		}
+		passphrase := string(passphraseBytes)
 
 		key := crypto.DeriveKey(passphrase, salt)
 
