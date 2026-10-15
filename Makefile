@@ -1,22 +1,26 @@
+VERSION := v1.0.0-RC
+LDFLAGS := -ldflags="-s -w -X rune/internal/cli.Version=$(VERSION)"
+BIN     := bin
+
+$(BIN):
+	mkdir -p $(BIN)
+
 build-ui:
 	cd ui && npm install && npm run build
 
-cli-build:
-	go build -o rune ./cmd/cli
+cli-build: $(BIN)
+	go build $(LDFLAGS) -o $(BIN)/rune ./cmd/cli
+
+server-build: build-ui $(BIN)
+	go build $(LDFLAGS) -o $(BIN)/rune-server ./cmd/server
 
 cli-install: cli-build
-	sudo mv rune /usr/local/bin/rune
-
-server-build: build-ui
-	go build -o rune-server ./cmd/server
+	sudo cp $(BIN)/rune /usr/local/bin/rune
 
 server-install: server-build
-	sudo mv rune-server /usr/local/bin/rune-server
+	sudo cp $(BIN)/rune-server /usr/local/bin/rune-server
 
-make-server: build-ui
-	go build -o rune-server ./cmd/server && \
-	sudo mv rune-server /usr/local/bin/rune-server
+install: cli-install server-install
 
-make-cli:
-	go build -o rune ./cmd/cli && \
-	sudo mv rune /usr/local/bin/rune
+clean:
+	rm -rf $(BIN)

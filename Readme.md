@@ -91,10 +91,10 @@ Rune ships two binaries that work together:
 
 ## Installation
 
-### Homebrew (macOS / Linux)
+### macOS / Linux
 
 ```bash
-brew install runelock
+curl -fsSL https://raw.githubusercontent.com/runelock-io/rune/main/scripts/install.sh | bash
 ```
 
 ### Verify the installation
