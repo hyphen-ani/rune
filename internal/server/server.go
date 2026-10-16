@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"rune/internal/api"
+	"rune/internal/audit"
 	"rune/internal/auth"
 	"rune/internal/config"
 	"rune/internal/constants"
@@ -129,7 +130,11 @@ func Start() {
 	secretService := service.NewSecretService(store, sealer)
 	tokenService := service.NewTokenService(store, sealer)
 	namespaceService := service.NewNamespaceService(store)
-	handler := api.NewHandler(secretService, tokenService, namespaceService, store, sealer)
+	k8sService := service.NewK8sMappingService(store)
+	auditLogger := audit.NewLogger(store)
+	handler := api.NewHandler(secretService, tokenService, namespaceService, store, sealer, auditLogger)
+	k8sHandler := api.NewK8sHandler(k8sService, auditLogger)
+	auditHandler := api.NewAuditHandler(store)
 
 	// PUBLIC
 	public := http.NewServeMux()
@@ -158,7 +163,14 @@ func Start() {
 	protected.HandleFunc("/secret/version", handler.GetSecretVersion)
 	protected.HandleFunc("/secret/history", handler.ListSecretVersions)
 	protected.HandleFunc("/secret/all", handler.GetAllSecrets)
+	protected.HandleFunc("/secret/ttl", handler.SetSecretTTL)
+	protected.HandleFunc("/secret/meta", handler.ListSecretMeta)
 	protected.HandleFunc("/stats", handler.GetStats)
+	protected.HandleFunc("/k8s/mappings", k8sHandler.ListMappings)
+	protected.HandleFunc("/k8s/mapping/create", k8sHandler.CreateMapping)
+	protected.HandleFunc("/k8s/mapping/delete", k8sHandler.DeleteMapping)
+	protected.HandleFunc("/k8s/mapping/status", k8sHandler.UpdateStatus)
+	protected.HandleFunc("/audit/events", auditHandler.ListEvents)
 
 	// APPLY MIDDLEWARE
 	secured := middleware.AuthMiddleware(store)(protected)
@@ -170,6 +182,47 @@ func Start() {
 	finalMux.Handle("/ui/", http.StripPrefix("/ui", ui.Handler()))
 	finalMux.Handle("/", secured)
 
+	go startTTLScheduler(secretService, store, auditLogger, sealer)
+
 	printBanner(dbPath)
 	log.Fatal(http.ListenAndServe(":"+port, finalMux))
+}
+
+func startTTLScheduler(svc *service.SecretService, store storage.Store, al *audit.Logger, sealer *seal.Manager) {
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		if sealer.IsSealed() {
+			continue
+		}
+		expired, err := store.ListExpiredSecrets()
+		if err != nil || len(expired) == 0 {
+			continue
+		}
+		for _, fullKey := range expired {
+			parts := strings.SplitN(fullKey, "/", 2)
+			if len(parts) != 2 {
+				continue
+			}
+			ns, key := parts[0], parts[1]
+			_, rotErr := svc.Rotate(ns, key)
+			status := audit.StatusSuccess
+			msg := ""
+			if rotErr != nil {
+				status = audit.StatusFailure
+				msg = rotErr.Error()
+			}
+			al.Log(audit.Event{
+				ID:        fmt.Sprintf("%020d", time.Now().UnixNano()),
+				Timestamp: time.Now().Format(time.RFC3339),
+				Type:      audit.TypeSecretRotate,
+				Actor:     "rune-scheduler",
+				ActorID:   "system",
+				Resource:  fullKey,
+				Status:    status,
+				Message:   msg,
+				IP:        "127.0.0.1",
+			})
+		}
+	}
 }

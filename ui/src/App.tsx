@@ -12,11 +12,13 @@ import { NamespacesView } from "@/components/NamespacesView"
 import { TokensView } from "@/components/TokensView"
 import { IntegrationsView } from "@/components/IntegrationsView"
 import { DashboardView } from "@/components/DashboardView"
+import { KubernetesView } from "@/components/KubernetesView"
+import { AuditView } from "@/components/AuditView"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 
-export type View = "dashboard" | "secrets" | "namespaces" | "tokens" | "integrations"
+export type View = "dashboard" | "secrets" | "namespaces" | "tokens" | "integrations" | "kubernetes" | "audit"
 
-const ALL_VIEWS: View[] = ["dashboard", "secrets", "namespaces", "tokens", "integrations"]
+const ALL_VIEWS: View[] = ["dashboard", "secrets", "namespaces", "tokens", "integrations", "kubernetes", "audit"]
 
 function getInitialView(): View {
   const hash = window.location.hash.slice(1) as View
@@ -145,6 +147,8 @@ export default function App() {
           {view === "tokens"     && <TokensView     token={token} tokenInfo={tokenInfo} />}
           {view === "dashboard"     && <DashboardView token={token} />}
           {view === "integrations" && <IntegrationsView />}
+          {view === "kubernetes"   && <KubernetesView   token={token} />}
+          {view === "audit"       && <AuditView        token={token} />}
         </div>
       </SidebarInset>
       <Toaster richColors theme={toasterTheme} position="bottom-right" />

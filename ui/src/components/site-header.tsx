@@ -17,6 +17,8 @@ const VIEW_LABELS: Record<View, string> = {
   namespaces:   "Namespaces",
   tokens:       "Tokens",
   integrations: "Integrations",
+  kubernetes:   "Kubernetes",
+  audit:        "Audit Log",
 }
 
 interface Props {
